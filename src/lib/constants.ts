@@ -15,11 +15,6 @@ export const RETRIEVAL_API_BASE_URL = `${WEBUI_BASE_URL}/api/v1/retrieval`;
 
 export const WEBUI_VERSION = APP_VERSION;
 export const WEBUI_BUILD_HASH = APP_BUILD_HASH;
-
-// Allowed origins for embedded context (comma-separated via EMBEDDED_CONTEXT_ORIGINS env var)
-export const EMBEDDED_CONTEXT_ALLOWED_ORIGINS: string[] = EMBEDDED_CONTEXT_ORIGINS
-	? EMBEDDED_CONTEXT_ORIGINS.split(',').map((origin: string) => origin.trim()).filter(Boolean)
-	: [];
 export const REQUIRED_OLLAMA_VERSION = '0.1.16';
 
 export const SUPPORTED_FILE_TYPE = [

@@ -1909,15 +1909,6 @@
 		return features;
 	};
 
-	const getEmbeddedContext = (): Record<string, unknown> | undefined => {
-		try {
-			const stored = localStorage.getItem('embedded_context');
-			return stored ? JSON.parse(stored) : undefined;
-		} catch {
-			return undefined;
-		}
-	};
-
 	const sendMessageSocket = async (model, _messages, _history, responseMessageId, _chatId) => {
 		const responseMessage = _history.messages[responseMessageId];
 		const userMessage = _history.messages[responseMessage.parentId];
@@ -2126,10 +2117,7 @@
 								include_usage: true
 							}
 						}
-					: {}),
-
-				// Embedded context from host application (e.g., Dynamics 365)
-				...(getEmbeddedContext() ? { embedded_context: getEmbeddedContext() } : {})
+					: {})
 			},
 			`${WEBUI_BASE_URL}/api`
 		).catch(async (error) => {

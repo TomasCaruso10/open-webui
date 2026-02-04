@@ -48,7 +48,7 @@
 	import { getAllTags, getChatList } from '$lib/apis/chats';
 	import { chatCompletion } from '$lib/apis/openai';
 
-	import { WEBUI_API_BASE_URL, WEBUI_BASE_URL, WEBUI_HOSTNAME, EMBEDDED_CONTEXT_ALLOWED_ORIGINS } from '$lib/constants';
+	import { WEBUI_API_BASE_URL, WEBUI_BASE_URL, WEBUI_HOSTNAME } from '$lib/constants';
 	import { bestMatchingLanguage } from '$lib/utils';
 	import { setTextScale } from '$lib/utils/text-scale';
 
@@ -628,64 +628,8 @@
 		}
 	};
 
-	// Handle embedded context from host application (e.g., Dynamics 365)
-	const embeddedContextMessageHandler = (event: MessageEvent) => {
-		if (!EMBEDDED_CONTEXT_ALLOWED_ORIGINS.includes(event.origin)) {
-			return;
-		}
-
-		if (event.data?.type === 'embedded:context') {
-			try {
-				const context = event.data?.context ?? {};
-				if (context && typeof context === 'object' && !Array.isArray(context)) {
-					localStorage.setItem('embedded_context', JSON.stringify(context));
-				}
-			} catch (e) {
-				console.error('Error processing embedded context:', e);
-			}
-		}
-	};
-
-	// Handle embedded auth from host application (e.g., Dynamics 365 via iframe_bridge)
-	const embeddedAuthMessageHandler = (event: MessageEvent) => {
-		if (!EMBEDDED_CONTEXT_ALLOWED_ORIGINS.includes(event.origin)) {
-			return;
-		}
-
-		if (event.data?.type === 'embedded:auth') {
-			try {
-				const { token, theme } = event.data;
-
-				if (token) {
-					localStorage.setItem('token', token);
-				}
-
-				if (theme) {
-					localStorage.setItem('theme', theme);
-					if (window.applyTheme) {
-						window.applyTheme();
-					}
-				}
-
-				// Reload to apply the new token
-				if (token) {
-					location.reload();
-				}
-			} catch (e) {
-				console.error('Error processing embedded auth:', e);
-			}
-		}
-	};
-
 	onMount(async () => {
 		window.addEventListener('message', windowMessageEventHandler);
-		window.addEventListener('message', embeddedContextMessageHandler);
-		window.addEventListener('message', embeddedAuthMessageHandler);
-
-		// Notify parent that Open Web UI is ready for embedded auth
-		if (window.parent !== window) {
-			window.parent.postMessage({ type: 'embedded:ready' }, '*');
-		}
 
 		let touchstartY = 0;
 
