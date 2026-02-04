@@ -974,6 +974,10 @@ OTEL_LOGS_OTLP_SPAN_EXPORTER = os.environ.get(
     "OTEL_LOGS_OTLP_SPAN_EXPORTER", OTEL_OTLP_SPAN_EXPORTER
 ).lower()  # grpc or http
 
+ENABLE_OTEL_SQLALCHEMY = (
+    os.environ.get("ENABLE_OTEL_SQLALCHEMY", "True").lower() == "true"
+)
+
 ####################################
 # TOOLS/FUNCTIONS PIP OPTIONS
 ####################################

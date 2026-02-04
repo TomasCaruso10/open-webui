@@ -174,6 +174,8 @@ def aiohttp_response_hook(
         span.set_attribute(SpanAttributes.ERROR_MESSAGE, str(response.exception))
 
 
+from open_webui.env import ENABLE_OTEL_SQLALCHEMY
+
 class Instrumentor(BaseInstrumentor):
     """
     Instrument OT
@@ -188,7 +190,8 @@ class Instrumentor(BaseInstrumentor):
 
     def _instrument(self, **kwargs):
         instrument_fastapi(app=self.app)
-        SQLAlchemyInstrumentor().instrument(engine=self.db_engine)
+        if ENABLE_OTEL_SQLALCHEMY:
+            SQLAlchemyInstrumentor().instrument(engine=self.db_engine)
         RedisInstrumentor().instrument(request_hook=redis_request_hook)
         RequestsInstrumentor().instrument(
             request_hook=requests_hook, response_hook=response_hook
