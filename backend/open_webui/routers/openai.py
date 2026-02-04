@@ -1031,6 +1031,10 @@ async def generate_chat_completion(
             "role": user.role,
         }
 
+        # Forward embedded_context to pipelines if present
+        if form_data.get("embedded_context"):
+            payload["embedded_context"] = form_data.get("embedded_context")
+
     url = request.app.state.config.OPENAI_API_BASE_URLS[idx]
     key = request.app.state.config.OPENAI_API_KEYS[idx]
 
