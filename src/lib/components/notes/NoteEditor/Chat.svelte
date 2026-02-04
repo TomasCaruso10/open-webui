@@ -138,7 +138,8 @@ Based on the user's instruction, update and enhance the existing notes or select
 			responseMessage = {
 				role: 'assistant',
 				content: '',
-				done: false
+				done: false,
+				timestamp: Math.floor(Date.now() / 1000)
 			};
 			messages.push(responseMessage);
 			messages = messages;
@@ -241,6 +242,20 @@ Based on the user's instruction, update and enhance the existing notes or select
 
 										selectedContent = null;
 									}
+								} else {
+									// ## override: Mark reasoning as done
+									// Mark reasoning as done if it exists
+									if (responseMessage.reasoningContent) {
+										const duration =
+											Math.round((Date.now() / 1000 - responseMessage.timestamp) * 10) / 10;
+										responseMessage.content = `<details type="reasoning" duration="${duration}" done="true">\n${responseMessage.reasoningContent}\n</details>\n${messageContent}`;
+									} else {
+										// Handle <think> tags in main content
+										responseMessage.content = messageContent
+											.replace(/<think>/g, '\n<details type="reasoning" done="true">\n')
+											.replace(/<\/think>/g, '\n</details>\n');
+									}
+									// ## end override
 								}
 
 								responseMessage.done = true;
@@ -249,7 +264,32 @@ Based on the user's instruction, update and enhance the existing notes or select
 								let data = JSON.parse(line.replace(/^data: /, ''));
 								console.log(data);
 
-								let deltaContent = data.choices[0]?.delta?.content ?? '';
+								// ## override: Handling reasoning content and sources
+								if (data.choices?.[0]?.delta?.reasoning_content) {
+									if (!responseMessage.reasoningContent) {
+										responseMessage.reasoningContent = '';
+									}
+									responseMessage.reasoningContent += data.choices[0].delta.reasoning_content;
+
+									// Update content to show thinking
+									responseMessage.content = `<details type="reasoning" done="false">\n${responseMessage.reasoningContent}\n</details>\n${messageContent}`;
+									messages = messages;
+									await tick();
+									scrollToBottom();
+									continue;
+								}
+
+								// Handle Citations
+								if (data.sources) {
+									if (!responseMessage.sources) {
+										responseMessage.sources = [];
+									}
+									responseMessage.sources = data.sources;
+									messages = messages;
+								}
+								// ## end override
+
+								let deltaContent = data.choices?.[0]?.delta?.content ?? '';
 								if (responseMessage.content == '' && deltaContent == '\n') {
 									continue;
 								} else {
@@ -273,7 +313,25 @@ Based on the user's instruction, update and enhance the existing notes or select
 									} else {
 										messageContent += deltaContent;
 
-										responseMessage.content = messageContent;
+										// ## override: Update content with reasoning
+										if (responseMessage.reasoningContent) {
+											responseMessage.content = `<details type="reasoning" done="false">\n${responseMessage.reasoningContent}\n</details>\n${messageContent}`;
+										} else {
+											let displayContent = messageContent
+												.replace(/<think>/g, '\n<details type="reasoning" done="false">\n')
+												.replace(/<\/think>/g, '\n</details>\n');
+
+											const openCount = (displayContent.match(/<details type="reasoning"/g) || [])
+												.length;
+											const closeCount = (displayContent.match(/<\/details>/g) || []).length;
+
+											if (openCount > closeCount) {
+												displayContent += '\n</details>';
+											}
+
+											responseMessage.content = displayContent;
+										}
+										// ## end override
 										messages = messages;
 									}
 
