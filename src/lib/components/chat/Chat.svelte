@@ -83,7 +83,8 @@
 	import { uploadFile } from '$lib/apis/files';
 	import { createOpenAITextStream } from '$lib/apis/streaming';
 	import { getFunctions } from '$lib/apis/functions';
-	import { updateFolderById } from '$lib/apis/folders';
+	import { updateFolderById, getFolders } from '$lib/apis/folders';
+	import { CrmContextService } from '$lib/powerapps/services/CrmContextService';
 
 	import Banner from '../common/Banner.svelte';
 	import MessageInput from '$lib/components/chat/MessageInput.svelte';
@@ -1044,6 +1045,21 @@
 
 		chatFiles = [];
 		params = {};
+
+		//1 . Ensures a folder exists if contactid is present in url params
+
+		// crm-override: Ensures a folder exists if folder_id is present in url params
+		const crmContext = await CrmContextService.initCrmContext(
+			$page.url.searchParams,
+			localStorage.token
+		);
+		if (crmContext?.folderId) {
+			const folders = await getFolders(localStorage.token);
+			const folder = folders.find((f) => f.id === crmContext.folderId);
+			if (folder) {
+				await selectedFolder.set(folder);
+			}
+		}
 
 		if ($page.url.searchParams.get('youtube')) {
 			await uploadWeb(`https://www.youtube.com/watch?v=${$page.url.searchParams.get('youtube')}`);

@@ -150,7 +150,7 @@
 			})} -->
 
 			{$i18n.t(`Are you sure you want to delete "{{NAME}}"?`, {
-				NAME: folders[folderId].name
+				NAME: folder.name
 			})}
 		</div>
 

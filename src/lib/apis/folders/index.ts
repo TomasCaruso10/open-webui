@@ -1,6 +1,7 @@
 import { WEBUI_API_BASE_URL } from '$lib/constants';
 
 type FolderForm = {
+	id?: string; // crm-override: Allow setting explicit ID (e.g. contactid)
 	name?: string;
 	data?: Record<string, any>;
 	meta?: Record<string, any>;
@@ -68,7 +69,7 @@ export const getFolders = async (token: string = '') => {
 export const getFolderById = async (token: string, id: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/folders/${id}`, {
+	const res = await fetch(`${WEBUI_API_BASE_URL}/folders/${encodeURIComponent(id)}`, {
 		method: 'GET',
 		headers: {
 			Accept: 'application/json',
@@ -99,7 +100,7 @@ export const getFolderById = async (token: string, id: string) => {
 export const updateFolderById = async (token: string, id: string, folderForm: FolderForm) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/folders/${id}/update`, {
+	const res = await fetch(`${WEBUI_API_BASE_URL}/folders/${encodeURIComponent(id)}/update`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -135,7 +136,7 @@ export const updateFolderIsExpandedById = async (
 ) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/folders/${id}/update/expanded`, {
+	const res = await fetch(`${WEBUI_API_BASE_URL}/folders/${encodeURIComponent(id)}/update/expanded`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -169,7 +170,7 @@ export const updateFolderIsExpandedById = async (
 export const updateFolderParentIdById = async (token: string, id: string, parentId?: string) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/folders/${id}/update/parent`, {
+	const res = await fetch(`${WEBUI_API_BASE_URL}/folders/${encodeURIComponent(id)}/update/parent`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -208,7 +209,7 @@ type FolderItems = {
 export const updateFolderItemsById = async (token: string, id: string, items: FolderItems) => {
 	let error = null;
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/folders/${id}/update/items`, {
+	const res = await fetch(`${WEBUI_API_BASE_URL}/folders/${encodeURIComponent(id)}/update/items`, {
 		method: 'POST',
 		headers: {
 			Accept: 'application/json',
@@ -245,7 +246,7 @@ export const deleteFolderById = async (token: string, id: string, deleteContents
 	const searchParams = new URLSearchParams();
 	searchParams.append('delete_contents', deleteContents ? 'true' : 'false');
 
-	const res = await fetch(`${WEBUI_API_BASE_URL}/folders/${id}?${searchParams.toString()}`, {
+	const res = await fetch(`${WEBUI_API_BASE_URL}/folders/${encodeURIComponent(id)}?${searchParams.toString()}`, {
 		method: 'DELETE',
 		headers: {
 			Accept: 'application/json',
