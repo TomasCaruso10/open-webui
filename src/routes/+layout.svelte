@@ -52,6 +52,9 @@
 	import { bestMatchingLanguage } from '$lib/utils';
 	import { setTextScale } from '$lib/utils/text-scale';
 
+	// crm_override: Import CRM auth service for Power Apps Code App context
+	import { isCodeAppContext, requestCrmToken } from '$lib/powerapps/services/crmAuth';
+
 	import NotificationToast from '$lib/components/NotificationToast.svelte';
 	import AppSidebar from '$lib/components/app/AppSidebar.svelte';
 	import SyncStatsModal from '$lib/components/chat/Settings/SyncStatsModal.svelte';
@@ -97,6 +100,27 @@
 	let heartbeatInterval = null;
 
 	const BREAKPOINT = 768;
+
+	// crm_override: Attempt CRM authentication when in Power Apps Code App context.
+	// Calls the Dataverse Custom API (aut_GetSsoToken) to obtain a JWT compatible
+	// with Open WebUI, then validates it with getSessionUser.
+	async function attemptCrmAuth() {
+		try {
+			console.log('[crm_override] Attempting CRM auth...');
+			const crm = await requestCrmToken();
+			localStorage.token = crm.token;
+			const sessionUser = await getSessionUser(crm.token);
+			if (sessionUser) {
+				await user.set(sessionUser);
+				console.log('[crm_override] CRM auth successful for:', sessionUser.name);
+				return true;
+			}
+			localStorage.removeItem('token');
+		} catch (e) {
+			console.error('[crm_override] CRM auth failed:', e);
+		}
+		return false;
+	}
 
 	const setupSocket = async (enableWebsocket) => {
 		const _socket = io(`${WEBUI_BASE_URL}` || undefined, {
@@ -605,11 +629,21 @@
 		}
 
 		if (now >= exp - TOKEN_EXPIRY_BUFFER) {
-			const res = await userSignOut();
-			user.set(null);
-			localStorage.removeItem('token');
-
-			location.href = res?.redirect_url ?? '/auth';
+			// crm_override: In Code App context, renew token silently via CRM auth
+			if (await isCodeAppContext()) {
+				const renewed = await attemptCrmAuth();
+				if (!renewed) {
+					user.set(null);
+					localStorage.removeItem('token');
+					location.href = '/auth';
+				}
+			} else {
+				// Original behavior
+				const res = await userSignOut();
+				user.set(null);
+				localStorage.removeItem('token');
+				location.href = res?.redirect_url ?? '/auth';
+			}
 		}
 	};
 
@@ -801,13 +835,33 @@
 					} else {
 						// Redirect Invalid Session User to /auth Page
 						localStorage.removeItem('token');
-						await goto(`/auth?redirect=${encodedUrl}`);
+						// crm_override: Try CRM auth before redirecting to login
+						if (await isCodeAppContext()) {
+							const ok = await attemptCrmAuth();
+							if (ok) {
+								await config.set(await getBackendConfig());
+							} else {
+								await goto(`/auth?redirect=${encodedUrl}`);
+							}
+						} else {
+							await goto(`/auth?redirect=${encodedUrl}`);
+						}
 					}
 				} else {
-					// Don't redirect if we're already on the auth page
-					// Needed because we pass in tokens from OAuth logins via URL fragments
-					if ($page.url.pathname !== '/auth') {
-						await goto(`/auth?redirect=${encodedUrl}`);
+					// crm_override: In Code App context, try CRM auth transparently
+					if (await isCodeAppContext()) {
+						const ok = await attemptCrmAuth();
+						if (ok) {
+							await config.set(await getBackendConfig());
+						} else if ($page.url.pathname !== '/auth') {
+							await goto(`/auth?redirect=${encodedUrl}`);
+						}
+					} else {
+						// Don't redirect if we're already on the auth page
+						// Needed because we pass in tokens from OAuth logins via URL fragments
+						if ($page.url.pathname !== '/auth') {
+							await goto(`/auth?redirect=${encodedUrl}`);
+						}
 					}
 				}
 			}

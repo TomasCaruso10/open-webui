@@ -1,0 +1,24 @@
+{
+  "appId": "",
+  "appDisplayName": "OpenWebUI",
+  "description": null,
+  "environmentId": "6324cac6-dbbb-e555-8bbd-4f902ee1a905",
+  "buildPath": "./build",
+  "buildEntryPoint": "index.html",
+  "logoPath": "Default",
+  "localAppUrl": "http://localhost:5173",
+  "region": "prod",
+  "connectionReferences": {
+    "e2de0b40-f19c-4f51-9ddb-43380b6ff083": {
+      "id": "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps",
+      "displayName": "Microsoft Dataverse",
+      "dataSources": [
+        "commondataserviceforapps"
+      ],
+      "authenticationType": "Oauth",
+      "dataSets": {}
+    }
+  },
+  "databaseReferences": {},
+  "version": "1.0"
+}
