@@ -34,7 +34,10 @@ export default defineConfig(({ mode }) => {
 		define: {
 			APP_VERSION: JSON.stringify(process.env.npm_package_version),
 			APP_BUILD_HASH: JSON.stringify(process.env.APP_BUILD_HASH || 'dev-build'),
-			CRM_BASE_URL: JSON.stringify(process.env.CRM_BASE_URL || 'https://inefop-anii.crm.dynamics.com')
+			CRM_BASE_URL: JSON.stringify(process.env.CRM_BASE_URL || 'https://inefop-anii.crm.dynamics.com'),
+			// crm_override: Expose WEBUI_BASE_URL from env
+			WEBUI_URL_OVERRIDE: JSON.stringify(env.WEBUI_BASE_URL || '')
+			// crm_override: end
 		},
 		build: {
 			sourcemap: true
