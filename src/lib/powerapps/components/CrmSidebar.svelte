@@ -20,14 +20,20 @@
 
 	import { getChatListByFolderId } from '$lib/apis/chats';
 	import { getFolderById } from '$lib/apis/folders';
+	import { searchKnowledgeFilesById } from '$lib/apis/knowledge';
 
 	import ChatItem from '$lib/components/layout/Sidebar/ChatItem.svelte';
 	import UserMenu from '$lib/components/layout/Sidebar/UserMenu.svelte';
 	import Spinner from '$lib/components/common/Spinner.svelte';
 	import Loader from '$lib/components/common/Loader.svelte';
 	import Tooltip from '$lib/components/common/Tooltip.svelte';
+	import Collapsible from '$lib/components/common/Collapsible.svelte';
 	import PencilSquare from '$lib/components/icons/PencilSquare.svelte';
 	import SidebarIcon from '$lib/components/icons/Sidebar.svelte';
+	import Database from '$lib/components/icons/Database.svelte';
+	import DocumentPage from '$lib/components/icons/DocumentPage.svelte';
+	import ChevronDown from '$lib/components/icons/ChevronDown.svelte';
+	import ChevronRight from '$lib/components/icons/ChevronRight.svelte';
 	import ArchivedChatsModal from '$lib/components/layout/ArchivedChatsModal.svelte';
 
 	import { WEBUI_BASE_URL, WEBUI_API_BASE_URL } from '$lib/constants';
@@ -41,6 +47,18 @@
 	let selectedChatId: string | null = null;
 	let shiftKey = false;
 	let scrollTop = 0;
+
+	// --- Knowledge section state ---
+	let knowledgeOpen = true;
+	let knowledgeCollections: Array<{ type: string; id: string; name: string }> = [];
+	let knowledgeLoading = false;
+
+	// Per-KB file expansion
+	let expandedKbId: string | null = null;
+	let kbFiles: any[] | null = null;
+	let kbFilesPage = 1;
+	let kbFilesAllLoaded = false;
+	let kbFilesLoading = false;
 
 	const MIN_WIDTH = 220;
 	const MAX_WIDTH = 480;
@@ -75,6 +93,69 @@
 		allChatsLoaded = newChats.length === 0;
 		folderChats = [...(folderChats ?? []), ...newChats];
 		chatListLoading = false;
+	};
+
+	// --- Knowledge section management ---
+
+	const initKnowledgeCollections = async () => {
+		if (!$crmContext?.folder?.folderId) return;
+		knowledgeLoading = true;
+		try {
+			const folder = await getFolderById(localStorage.token, $crmContext.folder.folderId);
+			knowledgeCollections = (folder?.data?.files || []).filter(
+				(f: any) => f.type === 'collection'
+			);
+		} catch {
+			knowledgeCollections = [];
+		} finally {
+			knowledgeLoading = false;
+		}
+	};
+
+	const toggleKbExpand = async (kbId: string) => {
+		if (expandedKbId === kbId) {
+			expandedKbId = null;
+			kbFiles = null;
+			return;
+		}
+		expandedKbId = kbId;
+		kbFiles = null;
+		kbFilesPage = 1;
+		kbFilesAllLoaded = false;
+		await loadKbFilesPage();
+	};
+
+	const loadKbFilesPage = async () => {
+		if (!expandedKbId) return;
+		kbFilesLoading = true;
+		try {
+			const res = await searchKnowledgeFilesById(
+				localStorage.token,
+				expandedKbId,
+				null,
+				null,
+				null,
+				null,
+				kbFilesPage
+			);
+			const items = res?.items ?? [];
+			kbFilesAllLoaded = items.length === 0;
+			kbFiles = [...(kbFiles ?? []), ...items];
+		} catch {
+			kbFilesAllLoaded = true;
+		} finally {
+			kbFilesLoading = false;
+		}
+	};
+
+	const loadMoreKbFiles = async () => {
+		if (kbFilesAllLoaded || kbFilesLoading) return;
+		kbFilesPage += 1;
+		await loadKbFilesPage();
+	};
+
+	const navigateToKnowledge = (kbId: string) => {
+		goto(`/workspace/knowledge/${kbId}`);
 	};
 
 	// --- New chat handler (preserves CRM folder context) ---
@@ -188,6 +269,7 @@
 				localStorage.sidebar = value;
 				if (value) {
 					await initFolderChatList();
+					await initKnowledgeCollections();
 				}
 			}),
 			chatId.subscribe(() => {
@@ -439,6 +521,136 @@
 						</a>
 					</div>
 				</div>
+
+				<!-- Knowledge section (collapsible) -->
+				{#if knowledgeCollections.length > 0 || knowledgeLoading}
+					<div class="px-[0.4375rem] pb-0.5">
+						<Collapsible
+							bind:open={knowledgeOpen}
+							className="w-full"
+							buttonClassName="w-full"
+							chevron={true}
+						>
+							<div
+								class="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-500"
+							>
+								<Database className="size-3.5" />
+								<span>{$i18n.t('Knowledge')}</span>
+								{#if !knowledgeLoading && knowledgeCollections.length > 0}
+									<span class="text-gray-400 dark:text-gray-600">
+										({knowledgeCollections.length})
+									</span>
+								{/if}
+							</div>
+
+							<svelte:fragment slot="content">
+								{#if knowledgeLoading}
+									<div class="flex justify-center py-2">
+										<Spinner className="size-3.5" />
+									</div>
+								{:else}
+									<div class="flex flex-col gap-0.5 px-1">
+										{#each knowledgeCollections as kb (kb.id)}
+											<!-- KB row -->
+											<div
+												class="flex items-center gap-1 px-2 py-1 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-900 transition"
+											>
+												<button
+													class="flex-1 flex items-center gap-1.5 text-left min-w-0"
+													type="button"
+													on:click={() => navigateToKnowledge(kb.id)}
+												>
+													<Database
+														className="size-3.5 shrink-0 text-gray-500"
+													/>
+													<Tooltip content={kb.name} placement="top-start">
+														<span
+															class="line-clamp-1 text-sm text-gray-800 dark:text-gray-200"
+														>
+															{kb.name}
+														</span>
+													</Tooltip>
+												</button>
+
+												<button
+													type="button"
+													class="shrink-0 p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition"
+													on:click|stopPropagation={() =>
+														toggleKbExpand(kb.id)}
+												>
+													{#if expandedKbId === kb.id}
+														<ChevronDown className="size-3" />
+													{:else}
+														<ChevronRight className="size-3" />
+													{/if}
+												</button>
+											</div>
+
+											<!-- Expanded file list -->
+											{#if expandedKbId === kb.id}
+												<div class="pl-5 flex flex-col gap-0.5 mb-1">
+													{#if kbFiles === null}
+														<div class="flex justify-center py-1.5">
+															<Spinner className="size-3" />
+														</div>
+													{:else if kbFiles.length === 0}
+														<div
+															class="text-xs text-gray-400 dark:text-gray-500 italic py-1 px-2"
+														>
+															{$i18n.t('No files')}
+														</div>
+													{:else}
+														{#each kbFiles as file (file.id)}
+															<button
+																class="flex items-center gap-1.5 px-2 py-1 rounded-xl text-left hover:bg-gray-100 dark:hover:bg-gray-850 transition w-full"
+																type="button"
+																on:click={() =>
+																	navigateToKnowledge(kb.id)}
+															>
+																<DocumentPage
+																	className="size-3.5 shrink-0 text-gray-400"
+																/>
+																<Tooltip
+																	content={file?.meta?.name ??
+																		file?.name}
+																	placement="top-start"
+																>
+																	<span
+																		class="line-clamp-1 text-xs text-gray-600 dark:text-gray-400"
+																	>
+																		{file?.meta?.name ??
+																			file?.name ??
+																			'Unnamed'}
+																	</span>
+																</Tooltip>
+															</button>
+														{/each}
+
+														{#if !kbFilesAllLoaded}
+															<Loader
+																on:visible={() => {
+																	if (!kbFilesLoading) {
+																		loadMoreKbFiles();
+																	}
+																}}
+															>
+																<div
+																	class="flex justify-center py-1 text-xs animate-pulse items-center gap-1"
+																>
+																	<Spinner className="size-3" />
+																</div>
+															</Loader>
+														{/if}
+													{/if}
+												</div>
+											{/if}
+										{/each}
+									</div>
+								{/if}
+							</svelte:fragment>
+						</Collapsible>
+					</div>
+				{/if}
 
 				<!-- Folder chats list -->
 				<div class="flex-1 flex flex-col overflow-y-auto scrollbar-hidden">
