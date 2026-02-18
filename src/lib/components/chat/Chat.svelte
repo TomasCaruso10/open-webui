@@ -83,8 +83,9 @@
 	import { uploadFile } from '$lib/apis/files';
 	import { createOpenAITextStream } from '$lib/apis/streaming';
 	import { getFunctions } from '$lib/apis/functions';
-	import { updateFolderById, getFolders } from '$lib/apis/folders';
+	import { updateFolderById, getFolders, getFolderById } from '$lib/apis/folders';
 	import { CrmContextService } from '$lib/powerapps/services/CrmContextService';
+	import { crmContext } from '$lib/powerapps/stores/crmContext';
 
 	import Banner from '../common/Banner.svelte';
 	import MessageInput from '$lib/components/chat/MessageInput.svelte';
@@ -1049,13 +1050,22 @@
 		//1 . Ensures a folder exists if contactid is present in url params
 
 		// crm-override: Ensures a folder exists if folder_id is present in url params
-		const crmContext = await CrmContextService.initCrmContext(
+		const crmResult = await CrmContextService.initCrmContext(
 			$page.url.searchParams,
 			localStorage.token
 		);
-		if (crmContext?.folderId) {
+		if (crmResult?.folderId) {
 			const folders = await getFolders(localStorage.token);
-			const folder = folders.find((f) => f.id === crmContext.folderId);
+			const folder = folders.find((f) => f.id === crmResult.folderId);
+			if (folder) {
+				await selectedFolder.set(folder);
+			}
+		}
+
+		// crm-override: Re-apply folder context on re-mount when URL params are gone
+		// (e.g. user clicked "New Chat" and URL is now just "/")
+		if (!crmResult?.folderId && $crmContext?.folder?.folderId) {
+			const folder = await getFolderById(localStorage.token, $crmContext.folder.folderId);
 			if (folder) {
 				await selectedFolder.set(folder);
 			}
@@ -2434,7 +2444,10 @@
 			await chats.set(await getChatList(localStorage.token, $currentChatPage));
 			currentChatPage.set(1);
 
-			selectedFolder.set(null);
+			// crm-override: preserve folder context in CRM embedded mode
+			if (!$crmContext) {
+				selectedFolder.set(null);
+			}
 		} else {
 			_chatId = `local:${$socket?.id}`; // Use socket id for temporary chat
 			await chatId.set(_chatId);

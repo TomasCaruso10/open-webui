@@ -1,5 +1,5 @@
 {
-  "appId": "",
+  "appId": "86b267d2-4108-4e99-9e91-aa78caa57c89",
   "appDisplayName": "OpenWebUI",
   "description": null,
   "environmentId": "6324cac6-dbbb-e555-8bbd-4f902ee1a905",
@@ -16,9 +16,9 @@
         "commondataserviceforapps"
       ],
       "authenticationType": "Oauth",
+      "sharedConnectionId": null,
       "dataSets": {}
     }
   },
-  "databaseReferences": {},
-  "version": "1.0"
+  "databaseReferences": {}
 }

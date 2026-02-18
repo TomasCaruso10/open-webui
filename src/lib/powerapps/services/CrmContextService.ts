@@ -1,4 +1,5 @@
 import { getFolderById, createNewFolder } from '$lib/apis/folders';
+import { crmContext } from '$lib/powerapps/stores/crmContext';
 
 export class CrmContextService {
     /**
@@ -67,6 +68,13 @@ export class CrmContextService {
             } catch (createError) {
                 console.error('[CrmContextService] Error creating generic context folder:', createError);
             }
+        }
+
+        // Set permanent CRM context store (survives navigation, never cleared)
+        if (targetFolderId) {
+            crmContext.set({
+                folder: { folderId: targetFolderId, folderName: displayName }
+            });
         }
 
         return {

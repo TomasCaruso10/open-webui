@@ -38,6 +38,8 @@
 	} from '$lib/stores';
 
 	import Sidebar from '$lib/components/layout/Sidebar.svelte';
+	import CrmSidebar from '$lib/powerapps/components/CrmSidebar.svelte';
+	import { isCrmEmbedded } from '$lib/powerapps/stores/crmContext';
 	import SettingsModal from '$lib/components/chat/SettingsModal.svelte';
 	import ChangelogModal from '$lib/components/ChangelogModal.svelte';
 	import AccountPending from '$lib/components/layout/Overlay/AccountPending.svelte';
@@ -383,7 +385,11 @@
 					</div>
 				{/if}
 
-				<Sidebar />
+				{#if $isCrmEmbedded}
+					<CrmSidebar />
+				{:else}
+					<Sidebar />
+				{/if}
 
 				{#if loaded}
 					<slot />
