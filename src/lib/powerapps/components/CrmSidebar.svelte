@@ -268,10 +268,7 @@
 			}}
 		>
 			<div class="pb-1.5">
-				<Tooltip
-					content={$i18n.t('Open Sidebar')}
-					placement="right"
-				>
+				<Tooltip content={$i18n.t('Open Sidebar')} placement="right">
 					<button
 						class="flex rounded-xl hover:bg-gray-100 dark:hover:bg-gray-850 transition group {isWindows
 							? 'cursor-pointer'
@@ -455,7 +452,8 @@
 								{#each folderChats as chat, idx (`crm-chat-${chat?.id ?? idx}`)}
 									{#if idx === 0 || (idx > 0 && chat.time_range !== folderChats[idx - 1].time_range)}
 										<div
-											class="w-full pl-2.5 text-xs text-gray-500 dark:text-gray-500 font-medium {idx === 0
+											class="w-full pl-2.5 text-xs text-gray-500 dark:text-gray-500 font-medium {idx ===
+											0
 												? ''
 												: 'pt-5'} pb-1.5"
 										>
@@ -501,9 +499,7 @@
 								{/if}
 							{/if}
 						{:else}
-							<div
-								class="w-full flex justify-center py-1 text-xs animate-pulse items-center gap-2"
-							>
+							<div class="w-full flex justify-center py-1 text-xs animate-pulse items-center gap-2">
 								<Spinner className=" size-4" />
 								<div class=" ">{$i18n.t('Loading...')}</div>
 							</div>
