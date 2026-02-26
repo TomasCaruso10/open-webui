@@ -506,6 +506,14 @@
 					eventConfirmationMessage = data.message;
 					eventConfirmationInputPlaceholder = data.placeholder;
 					eventConfirmationInputValue = data?.value ?? '';
+				// crm override: event from Serena backend — forward to PowerApps bridge
+				} else if (type === 'crm') {
+					try {
+						const { CrmEventBridge } = await import('$lib/powerapps/services/CrmEventBridge');
+						CrmEventBridge.dispatch(data);
+					} catch (e) {
+						console.warn('CrmEventBridge not available:', e);
+					}
 				} else {
 					console.log('Unknown message type', data);
 				}
@@ -2113,6 +2121,10 @@
 				variables: {
 					...getPromptVariables($user?.name, $settings?.userLocation ? userLocation : undefined)
 				},
+				// crm override : send embedede context to backend
+				embedded_context: $crmContext
+					? { record_id: $crmContext.folder.folderId, entity_name: 'contact' }
+					: undefined,
 				model_item: $models.find((m) => m.id === model.id),
 
 				session_id: $socket?.id,

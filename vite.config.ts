@@ -1,12 +1,10 @@
 import { sveltekit } from '@sveltejs/kit/vite';
-import { defineConfig, loadEnv, searchForWorkspaceRoot } from 'vite';
+import { defineConfig, searchForWorkspaceRoot } from 'vite';
 import path from 'path';
 
 import { viteStaticCopy } from 'vite-plugin-static-copy';
 
 export default defineConfig(({ mode }) => {
-	const env = loadEnv(mode, process.cwd(), '');
-
 	return {
 		server: {
 			fs: {
@@ -36,7 +34,7 @@ export default defineConfig(({ mode }) => {
 			APP_BUILD_HASH: JSON.stringify(process.env.APP_BUILD_HASH || 'dev-build'),
 			CRM_BASE_URL: JSON.stringify(process.env.CRM_BASE_URL || 'https://inefop-anii.crm.dynamics.com'),
 			// crm_override: Expose WEBUI_BASE_URL from env
-			WEBUI_URL_OVERRIDE: JSON.stringify(env.WEBUI_BASE_URL || '')
+			WEBUI_URL_OVERRIDE: JSON.stringify(process.env.WEBUI_BASE_URL || '')
 			// crm_override: end
 		},
 		build: {
