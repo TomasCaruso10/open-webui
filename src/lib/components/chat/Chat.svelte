@@ -514,6 +514,14 @@
 					} catch (e) {
 						console.warn('CrmEventBridge not available:', e);
 					}
+				// agent sub-task events from orchestrator — render as agent sections
+				} else if (type === 'agent') {
+					try {
+						const { AgentEventHandler } = await import('$lib/powerapps/services/AgentEventHandler');
+						AgentEventHandler.handle(data, message);
+					} catch (e) {
+						console.warn('AgentEventHandler not available:', e);
+					}
 				} else {
 					console.log('Unknown message type', data);
 				}
