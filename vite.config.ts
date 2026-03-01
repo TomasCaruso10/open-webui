@@ -1,22 +1,10 @@
 import { sveltekit } from '@sveltejs/kit/vite';
-import { defineConfig, searchForWorkspaceRoot } from 'vite';
-import path from 'path';
+import { defineConfig } from 'vite';
 
 import { viteStaticCopy } from 'vite-plugin-static-copy';
 
 export default defineConfig(({ mode }) => {
 	return {
-		server: {
-			fs: {
-				allow: [
-					// Allow serving files from the project root
-					searchForWorkspaceRoot(process.cwd()),
-					// Explicitly allow the .power directory
-					path.resolve(__dirname, '.power')
-				]
-			}
-		},
-
 		plugins: [
 			sveltekit(),
 			viteStaticCopy({
@@ -32,7 +20,6 @@ export default defineConfig(({ mode }) => {
 		define: {
 			APP_VERSION: JSON.stringify(process.env.npm_package_version),
 			APP_BUILD_HASH: JSON.stringify(process.env.APP_BUILD_HASH || 'dev-build'),
-			CRM_BASE_URL: JSON.stringify(process.env.CRM_BASE_URL || 'https://inefop-anii.crm.dynamics.com'),
 			// crm_override: Expose WEBUI_BASE_URL from env
 			WEBUI_URL_OVERRIDE: JSON.stringify(process.env.WEBUI_BASE_URL || '')
 			// crm_override: end

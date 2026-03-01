@@ -3,7 +3,6 @@
 declare global {
 	const APP_VERSION: string;
 	const APP_BUILD_HASH: string;
-	const CRM_BASE_URL: string;
 
 	namespace App {
 		// interface Error {}

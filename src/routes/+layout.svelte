@@ -52,8 +52,8 @@
 	import { bestMatchingLanguage } from '$lib/utils';
 	import { setTextScale } from '$lib/utils/text-scale';
 
-	// crm_override: Import CRM auth service for Power Apps Code App context
-	import { isCodeAppContext, requestCrmToken, listenForPreAuthToken } from '$lib/powerapps/services/crmAuth';
+	// crm_override: Import CRM auth service for iframe bridge context
+	import { listenForPreAuthToken, requestTokenRenewal } from '$lib/powerapps/services/crmAuth';
 
 	import NotificationToast from '$lib/components/NotificationToast.svelte';
 	import AppSidebar from '$lib/components/app/AppSidebar.svelte';
@@ -101,28 +101,8 @@
 
 	const BREAKPOINT = 768;
 
-	// crm_override: Attempt CRM authentication when in Power Apps Code App context.
-	// Calls the Dataverse Custom API (aut_GetSsoToken) to obtain a JWT compatible
-	// with Open WebUI, then validates it with getSessionUser.
-	async function attemptCrmAuth() {
-		try {
-			console.log('[crm_override] Attempting CRM auth...');
-			const crm = await requestCrmToken();
-			localStorage.token = crm.token;
-			const sessionUser = await getSessionUser(crm.token);
-			if (sessionUser) {
-				await user.set(sessionUser);
-				console.log('[crm_override] CRM auth successful for:', sessionUser.name);
-				return true;
-			}
-			localStorage.removeItem('token');
-		} catch (e) {
-			console.error('[crm_override] CRM auth failed:', e);
-		}
-		return false;
-	}
-
-	// crm_override: Try pre-auth token from iframe bridge first, then fall back to SDK auth.
+	// crm_override: Try pre-auth token from iframe bridge.
+	// No SDK fallback — if bridge token fails, redirect to /auth.
 	async function attemptPreAuth(preAuthPromise) {
 		const preAuthToken = await preAuthPromise;
 		if (preAuthToken) {
@@ -135,11 +115,7 @@
 				return true;
 			}
 			localStorage.removeItem('token');
-			console.warn('[pre-auth] Bridge token invalid, falling back to SDK auth');
-		}
-		// Fallback to SDK-based CRM auth
-		if (await isCodeAppContext()) {
-			return await attemptCrmAuth();
+			console.warn('[pre-auth] Bridge token invalid');
 		}
 		return false;
 	}
@@ -651,16 +627,24 @@
 		}
 
 		if (now >= exp - TOKEN_EXPIRY_BUFFER) {
-			// crm_override: In Code App context, renew token silently via CRM auth
-			if (await isCodeAppContext()) {
-				const renewed = await attemptCrmAuth();
-				if (!renewed) {
-					user.set(null);
-					localStorage.removeItem('token');
-					location.href = '/auth';
+			// crm_override: In iframe context, renew token silently via bridge postMessage
+			if (window !== window.parent) {
+				const renewedToken = await requestTokenRenewal();
+				if (renewedToken) {
+					localStorage.token = renewedToken;
+					const sessionUser = await getSessionUser(renewedToken).catch(() => null);
+					if (sessionUser) {
+						await user.set(sessionUser);
+						console.log('[pre-auth] Token renewed for:', sessionUser.name);
+						return;
+					}
 				}
+				// Renewal failed — redirect to auth
+				user.set(null);
+				localStorage.removeItem('token');
+				location.href = '/auth';
 			} else {
-				// Original behavior
+				// Original behavior (standalone browser)
 				const res = await userSignOut();
 				user.set(null);
 				localStorage.removeItem('token');
@@ -863,7 +847,7 @@
 					} else {
 						// Redirect Invalid Session User to /auth Page
 						localStorage.removeItem('token');
-						// crm_override: Try pre-auth (bridge token) → SDK auth → redirect
+						// crm_override: Try pre-auth (bridge token) → redirect
 						const ok = await attemptPreAuth(preAuthPromise);
 						if (ok) {
 							await config.set(await getBackendConfig());
@@ -872,7 +856,7 @@
 						}
 					}
 				} else {
-					// crm_override: Try pre-auth (bridge token) → SDK auth → redirect
+					// crm_override: Try pre-auth (bridge token) → redirect
 					const ok = await attemptPreAuth(preAuthPromise);
 					if (ok) {
 						await config.set(await getBackendConfig());
