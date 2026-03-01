@@ -159,6 +159,7 @@
 	let stopResponseFlag = false;
 
 	let inputElement = null;
+	let noteEditChannel: BroadcastChannel | null = null;
 
 	// Computed HTML for editor: fall back to markdown if HTML is missing
 	$: editorHtml =
@@ -842,10 +843,49 @@ Provide the enhanced notes in markdown format. Use markdown syntax for headings,
 		// dropzoneElement?.addEventListener('dragover', onDragOver);
 		// dropzoneElement?.addEventListener('drop', onDrop);
 		// dropzoneElement?.addEventListener('dragleave', onDragLeave);
+
+		// BroadcastChannel listener for real-time note edits from Serena
+		noteEditChannel = new BroadcastChannel('serena:note_edit');
+		noteEditChannel.onmessage = (event) => {
+			const data = event.data;
+			if (!data || data.note_id !== id) return;
+
+			switch (data.type) {
+				case 'start':
+					editing = true;
+					streaming = true;
+					if (note) {
+						insertNoteVersion(note);
+						note.data.content.md = '';
+						note.data.content.html = '';
+						note.data.content.json = null;
+					}
+					break;
+				case 'delta':
+					if (note) {
+						note.data.content.md += data.content || '';
+						note.data.content.html = marked.parse(note.data.content.md);
+						note.data.content.json = null;
+						scrollToBottom();
+					}
+					break;
+				case 'end':
+					if (note && data.content) {
+						note.data.content.md = data.content;
+						note.data.content.html = marked.parse(data.content);
+						note.data.content.json = null;
+					}
+					editing = false;
+					streaming = false;
+					onEdited();
+					break;
+			}
+		};
 	});
 
 	onDestroy(() => {
 		console.log('destroy');
+		noteEditChannel?.close();
 		$socket?.off('note-events', noteEventHandler);
 
 		const dropzoneElement = document.getElementById('note-editor');

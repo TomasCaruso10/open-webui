@@ -522,6 +522,15 @@
 					} catch (e) {
 						console.warn('AgentEventHandler not available:', e);
 					}
+				// note edit events — forward to NoteEditor via BroadcastChannel
+				} else if (type === 'note_edit') {
+					try {
+						const channel = new BroadcastChannel('serena:note_edit');
+						channel.postMessage(data);
+						channel.close();
+					} catch (e) {
+						console.warn('BroadcastChannel not available:', e);
+					}
 				} else {
 					console.log('Unknown message type', data);
 				}
