@@ -53,7 +53,7 @@
 	import { setTextScale } from '$lib/utils/text-scale';
 
 	// crm_override: Import CRM auth service for Power Apps Code App context
-	import { isCodeAppContext, requestCrmToken } from '$lib/powerapps/services/crmAuth';
+	import { isCodeAppContext, requestCrmToken, listenForPreAuthToken } from '$lib/powerapps/services/crmAuth';
 
 	import NotificationToast from '$lib/components/NotificationToast.svelte';
 	import AppSidebar from '$lib/components/app/AppSidebar.svelte';
@@ -118,6 +118,28 @@
 			localStorage.removeItem('token');
 		} catch (e) {
 			console.error('[crm_override] CRM auth failed:', e);
+		}
+		return false;
+	}
+
+	// crm_override: Try pre-auth token from iframe bridge first, then fall back to SDK auth.
+	async function attemptPreAuth(preAuthPromise) {
+		const preAuthToken = await preAuthPromise;
+		if (preAuthToken) {
+			console.log('[pre-auth] Validating bridge token...');
+			localStorage.token = preAuthToken;
+			const sessionUser = await getSessionUser(preAuthToken).catch(() => null);
+			if (sessionUser) {
+				await user.set(sessionUser);
+				console.log('[pre-auth] Bridge token valid for:', sessionUser.name);
+				return true;
+			}
+			localStorage.removeItem('token');
+			console.warn('[pre-auth] Bridge token invalid, falling back to SDK auth');
+		}
+		// Fallback to SDK-based CRM auth
+		if (await isCodeAppContext()) {
+			return await attemptCrmAuth();
 		}
 		return false;
 	}
@@ -663,6 +685,12 @@
 	};
 
 	onMount(async () => {
+		// crm_override: Start pre-auth handshake with iframe bridge as early as possible.
+		// If we're in an iframe, listen for the bridge's token while the rest of init runs.
+		const preAuthPromise = (window !== window.parent)
+			? listenForPreAuthToken(5000)
+			: Promise.resolve(null);
+
 		window.addEventListener('message', windowMessageEventHandler);
 
 		let touchstartY = 0;
@@ -835,33 +863,21 @@
 					} else {
 						// Redirect Invalid Session User to /auth Page
 						localStorage.removeItem('token');
-						// crm_override: Try CRM auth before redirecting to login
-						if (await isCodeAppContext()) {
-							const ok = await attemptCrmAuth();
-							if (ok) {
-								await config.set(await getBackendConfig());
-							} else {
-								await goto(`/auth?redirect=${encodedUrl}`);
-							}
+						// crm_override: Try pre-auth (bridge token) → SDK auth → redirect
+						const ok = await attemptPreAuth(preAuthPromise);
+						if (ok) {
+							await config.set(await getBackendConfig());
 						} else {
 							await goto(`/auth?redirect=${encodedUrl}`);
 						}
 					}
 				} else {
-					// crm_override: In Code App context, try CRM auth transparently
-					if (await isCodeAppContext()) {
-						const ok = await attemptCrmAuth();
-						if (ok) {
-							await config.set(await getBackendConfig());
-						} else if ($page.url.pathname !== '/auth') {
-							await goto(`/auth?redirect=${encodedUrl}`);
-						}
-					} else {
-						// Don't redirect if we're already on the auth page
-						// Needed because we pass in tokens from OAuth logins via URL fragments
-						if ($page.url.pathname !== '/auth') {
-							await goto(`/auth?redirect=${encodedUrl}`);
-						}
+					// crm_override: Try pre-auth (bridge token) → SDK auth → redirect
+					const ok = await attemptPreAuth(preAuthPromise);
+					if (ok) {
+						await config.set(await getBackendConfig());
+					} else if ($page.url.pathname !== '/auth') {
+						await goto(`/auth?redirect=${encodedUrl}`);
 					}
 				}
 			}

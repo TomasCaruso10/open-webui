@@ -324,7 +324,7 @@ async def generate_function_chat_completion(
                 async for line in res:
                     yield process_line(form_data, line)
 
-            if isinstance(res, str) or isinstance(res, Generator):
+            if isinstance(res, (str, Generator, AsyncGenerator)):
                 finish_message = openai_chat_chunk_message_template(
                     form_data["model"], ""
                 )

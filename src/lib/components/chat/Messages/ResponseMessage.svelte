@@ -803,6 +803,12 @@
 								/>
 							{/if}
 
+							{#if message.agentSections && Object.keys(message.agentSections).length > 0}
+								{#await import('$lib/powerapps/components/AgentSections.svelte') then { default: AgentSections }}
+									<svelte:component this={AgentSections} sections={message.agentSections} />
+								{/await}
+							{/if}
+
 							{#if message?.error}
 								<Error content={message?.error?.content ?? message.content} />
 							{/if}
@@ -821,11 +827,6 @@
 								<CodeExecutions codeExecutions={message.code_executions} />
 							{/if}
 
-							{#if message.agentSections && Object.keys(message.agentSections).length > 0}
-								{#await import('$lib/powerapps/components/AgentSections.svelte') then { default: AgentSections }}
-									<svelte:component this={AgentSections} sections={message.agentSections} />
-								{/await}
-							{/if}
 						</div>
 					</div>
 				</div>

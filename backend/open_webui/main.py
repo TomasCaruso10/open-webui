@@ -689,6 +689,7 @@ app.state.redis = None
 
 app.state.WEBUI_NAME = WEBUI_NAME
 app.state.LICENSE_METADATA = None
+app.state.DEFAULT_BACKGROUND_IMAGE_URL = os.environ.get("DEFAULT_BACKGROUND_IMAGE_URL", "")
 
 
 ########################################
@@ -2072,6 +2073,7 @@ async def get_app_config(request: Request):
                     "response_watermark": app.state.config.RESPONSE_WATERMARK,
                 },
                 "license_metadata": app.state.LICENSE_METADATA,
+                "default_background_image_url": app.state.DEFAULT_BACKGROUND_IMAGE_URL,
                 **(
                     {
                         "active_entries": app.state.USER_COUNT,

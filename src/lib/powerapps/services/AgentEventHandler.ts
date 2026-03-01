@@ -63,7 +63,7 @@ export class AgentEventHandler {
 				break;
 		}
 
-		// Trigger Svelte reactivity by reassigning
-		message.agentSections = sections;
+		// Trigger Svelte reactivity by creating a new reference
+		message.agentSections = { ...sections };
 	}
 }
