@@ -29,6 +29,25 @@ export function listenForPreAuthToken(timeoutMs = 5000): Promise<string | null> 
             if (event.data?.type !== 'auth:token') return;
 
             console.log('[pre-auth] Received token from bridge');
+
+            // Apply theme sent by the bridge (e.g. 'light' to match the CRM white UI).
+            // Set localStorage.theme so it persists across reloads, and also apply the
+            // class immediately since app.html already ran with the default theme.
+            const theme = event.data.theme;
+            if (theme) {
+                localStorage.theme = theme;
+                const root = document.documentElement;
+                root.classList.remove('dark', 'light', 'her');
+                if (theme === 'light') {
+                    root.classList.add('light');
+                } else if (theme === 'her') {
+                    root.classList.add('her');
+                } else {
+                    root.classList.add('dark');
+                }
+                console.log('[pre-auth] Theme applied:', theme);
+            }
+
             cleanup();
             resolve(event.data.token ?? null);
         };
