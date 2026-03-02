@@ -908,6 +908,7 @@ async def add_user(
             form_data.name,
             form_data.profile_image_url,
             form_data.role,
+            id=form_data.id,
             db=db,
         )
 

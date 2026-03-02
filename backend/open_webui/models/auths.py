@@ -85,6 +85,7 @@ class SignupForm(BaseModel):
 
 class AddUserForm(SignupForm):
     role: Optional[str] = "pending"
+    id: Optional[str] = None
 
 
 class AuthsTable:
@@ -96,12 +97,13 @@ class AuthsTable:
         profile_image_url: str = "/user.png",
         role: str = "pending",
         oauth: Optional[dict] = None,
+        id: Optional[str] = None,
         db: Optional[Session] = None,
     ) -> Optional[UserModel]:
         with get_db_context(db) as db:
             log.info("insert_new_auth")
 
-            id = str(uuid.uuid4())
+            id = id or str(uuid.uuid4())
 
             auth = AuthModel(
                 **{"id": id, "email": email, "password": password, "active": True}
