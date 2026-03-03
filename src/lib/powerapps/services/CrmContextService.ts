@@ -1,31 +1,33 @@
-import { getFolderById, createNewFolder, updateFolderById } from '$lib/apis/folders';
-import { createNewKnowledge } from '$lib/apis/knowledge';
+import { getFolders, getFolderById, createNewFolder, updateFolderById } from '$lib/apis/folders';
+import { createNewKnowledge, getKnowledgeBases } from '$lib/apis/knowledge';
 import { crmContext } from '$lib/powerapps/stores/crmContext';
 
 export class CrmContextService {
     /**
-     * Initializes the context based on generic URL parameters.
+     * Initializes the CRM context based on URL parameters.
      * Supports:
-     * - folder_id: The explicit ID to use for the folder.
-     * - folder_name: The display name for the folder (optional).
+     * - folder_id: The CRM contact GUID (used as reference, NOT as OWUI folder ID).
+     * - folder_name: Display name for the folder (optional).
      *
      * Logic:
-     * 1. Checks for 'folder_id'.
-     * 2. If missing, logs to console and returns null (context ignored).
-     * 3. If present:
-     *    - Try to find folder by this exact ID.
-     *    - If not found, create new folder with this ID.
-     *    - Name defaults to 'folder_name' param, or falls back to the ID itself.
-     * 4. Ensures the folder has an associated Knowledge Base:
-     *    - If folder.data.files already has a type="collection" item, KB exists — do nothing.
-     *    - If no KB linked, create a new one and link it via folder.data.files (native mechanism).
+     * 1. Checks for 'folder_id' (CRM contact GUID).
+     * 2. Looks up the user's OWUI folder for this contact using a localStorage cache:
+     *    - Cache hit: getFolderById(cachedId) — O(1), fast path.
+     *    - Cache miss: getFolders() + filter by name — only on first access per browser.
+     *    - Not found: create new folder with a OWUI-generated UUID (no custom ID).
+     * 3. Ensures the folder has an associated Knowledge Base linked via folder.data.files.
+     *
+     * Design:
+     * - 1 OWUI folder per orientador per contact (private, user-scoped)
+     * - 1 KB per contact CRM (public read+write, shared across orientadores)
+     * - KB named by contactGuid to survive contact name changes
      *
      * @param searchParams The URLSearchParams object from the current page.
      * @param token The user's authentication token.
      * @returns An object containing the folderId if a context was found/created.
      */
     static async initCrmContext(searchParams: URLSearchParams, token: string) {
-        let folderIdParam = searchParams.get('folder_id'); // Pure generic approach
+        const folderIdParam = searchParams.get('folder_id'); // CRM contact GUID
         const folderNameParam = searchParams.get('folder_name');
 
         if (!folderIdParam) {
@@ -33,63 +35,83 @@ export class CrmContextService {
             return null;
         }
 
-        // Sanitize ID (remove trailing slashes)
-        folderIdParam = folderIdParam.replace(/\/$/, '');
+        const contactGuid = folderIdParam.replace(/\/$/, '');
+        const displayName = folderNameParam || contactGuid;
+        const cacheKey = `serena_folder_${contactGuid}`;
 
-        console.log(`[CrmContextService] Initializing with folder_id: ${folderIdParam}`);
-        console.log('[CrmContextService] All params:', Object.fromEntries(searchParams.entries()));
-
-        let targetFolderId = null;
+        let targetFolderId: string | null = null;
         let folderData: Record<string, any> | null = null;
-        const displayName = folderNameParam || folderIdParam; // Fallback name to ID if name not provided
 
-        try {
-            // 1. Try to find existing folder by ID
-            const existingFolder = await getFolderById(token, folderIdParam);
-
-            if (existingFolder) {
-                console.log(`[CrmContextService] Found existing folder by ID: ${existingFolder.id}`);
-                targetFolderId = existingFolder.id;
-                folderData = existingFolder.data || null;
+        // 1. Cache hit: getFolderById (O(1))
+        const cachedFolderId = localStorage.getItem(cacheKey);
+        if (cachedFolderId) {
+            try {
+                const cachedFolder = await getFolderById(token, cachedFolderId);
+                if (cachedFolder) {
+                    console.log(`[CrmContextService] Found folder from cache: ${cachedFolder.id}`);
+                    targetFolderId = cachedFolder.id;
+                    folderData = cachedFolder.data || null;
+                }
+            } catch {
+                // Cache stale → continue with fallback
+                localStorage.removeItem(cacheKey);
             }
-        } catch (error) {
-            // getFolderById might throw if 404/error, or return null.
-            // We proceed to create if not found.
         }
 
-        // 2. If not found, create it
+        // 2. Cache miss: getFolders() + filter by name
         if (!targetFolderId) {
-            console.log(`[CrmContextService] Creating new folder with ID: ${folderIdParam} and Name: ${displayName}`);
+            try {
+                const allFolders = await getFolders(token);
+                const existingFolder = (allFolders || []).find((f: any) => f.name === displayName);
+                if (existingFolder) {
+                    console.log(`[CrmContextService] Found folder by name: ${existingFolder.id}`);
+                    const fullFolder = await getFolderById(token, existingFolder.id);
+                    if (fullFolder) {
+                        targetFolderId = fullFolder.id;
+                        folderData = fullFolder.data || null;
+                        localStorage.setItem(cacheKey, targetFolderId);
+                    }
+                }
+            } catch (error) {
+                console.warn('[CrmContextService] Error looking up folders:', error);
+            }
+        }
+
+        // 3. Not found: create new folder with OWUI-generated UUID (no custom id)
+        if (!targetFolderId) {
+            console.log(`[CrmContextService] Creating new folder: ${displayName}`);
             try {
                 const newFolder = await createNewFolder(token, {
-                    id: folderIdParam,
-                    name: displayName
+                    name: displayName,
+                    meta: { contact_id: contactGuid }
                 });
-
                 if (newFolder) {
                     targetFolderId = newFolder.id;
                     folderData = newFolder.data || null;
+                    localStorage.setItem(cacheKey, targetFolderId);
                 }
-            } catch (createError) {
-                console.error('[CrmContextService] Error creating generic context folder:', createError);
+            } catch (error) {
+                console.error('[CrmContextService] Error creating folder:', error);
             }
         }
 
-        // 3. Ensure folder has an associated Knowledge Base
+        // 4. Ensure KB linked
         if (targetFolderId) {
-            await CrmContextService.ensureKnowledgeBase(token, targetFolderId, displayName, folderData);
+            await CrmContextService.ensureKnowledgeBase(
+                token,
+                targetFolderId,
+                contactGuid,
+                displayName,
+                folderData
+            );
         }
 
-        // Set permanent CRM context store (survives navigation, never cleared)
+        // 5. Set CRM context store (survives navigation, never cleared)
         if (targetFolderId) {
-            crmContext.set({
-                folder: { folderId: targetFolderId, folderName: displayName }
-            });
+            crmContext.set({ folder: { contactGuid, folderId: targetFolderId, folderName: displayName } });
         }
 
-        return {
-            folderId: targetFolderId
-        };
+        return { folderId: targetFolderId };
     }
 
     /**
@@ -98,77 +120,101 @@ export class CrmContextService {
      * - KBs are stored in folder.data.files as { type: "collection", id: kb_id, name: kb_name }
      * - The middleware automatically injects folder.data.files into every chat request
      * - If a KB is already linked, this is a no-op
-     * - If no KB exists, creates one and links it
+     * - If no KB exists for this contactGuid, creates one and links it
+     *
+     * KB naming: `Docs: ${contactGuid}` — uses the CRM GUID (not the display name) so the
+     * KB is always found even if the contact's name changes in CRM.
      *
      * Access strategy (Feature 5.1):
      * KBs are created with public read+write access (principal_id: "*").
      * - Read grant: makes the KB visible to all authenticated users.
      * - Write grant: allows any user to upload/edit/delete files in the KB.
      * Requires "sharing.public_knowledge" enabled in Open WebUI admin settings.
-     * See .CRM_EMBEDDED.md Feature 5.1 for the full rationale and trade-off analysis.
      *
      * @param token Auth token
-     * @param folderId The folder ID
-     * @param contactName Display name for the KB
+     * @param folderId The OWUI folder ID
+     * @param contactGuid CRM contact GUID (used for KB name — stable identifier)
+     * @param contactName Display name for the KB description
      * @param folderData Current folder.data (may be null)
      */
     private static async ensureKnowledgeBase(
         token: string,
         folderId: string,
+        contactGuid: string,
         contactName: string,
         folderData: Record<string, any> | null
     ): Promise<void> {
         try {
             const existingFiles: any[] = folderData?.files || [];
 
-            // Check if a knowledge base (type="collection") is already linked
-            const hasKnowledge = existingFiles.some(
-                (file: any) => file.type === 'collection'
-            );
-
-            if (hasKnowledge) {
+            // Check 1: KB already linked in folder.data.files
+            const linkedKb = existingFiles.find((f: any) => f.type === 'collection');
+            if (linkedKb) {
                 console.log('[CrmContextService] Knowledge base already linked to folder. Skipping creation.');
                 return;
             }
 
-            // Create new Knowledge Base
-            console.log(`[CrmContextService] Creating knowledge base for: ${contactName}`);
-            const kb = await createNewKnowledge(
-                token,
-                `Docs: ${contactName}`,
-                `Documentos del contacto ${contactName}`,
-                [
-                    // Public read + write: all authenticated users can see and upload files to CRM KBs.
-                    // Read is required for visibility; write enables file uploads.
-                    // IMPORTANT: Requires "sharing.public_knowledge" permission enabled in Open WebUI admin settings,
-                    // otherwise the backend silently strips all grants (see knowledge.py create endpoint).
-                    // See Feature 5.1 in .CRM_EMBEDDED.md for full rationale.
-                    { principal_type: 'user', principal_id: '*', permission: 'read' },
-                    { principal_type: 'user', principal_id: '*', permission: 'write' }
-                ]
-            );
-
-            if (!kb || !kb.id) {
-                console.error('[CrmContextService] Failed to create knowledge base.');
-                return;
+            // Check 2: KB exists in OWUI but not linked (update may have silently failed before)
+            // KB name uses contactGuid so it's found even if the contact name changes
+            const expectedKbName = `Docs: ${contactGuid}`;
+            let existingKb: any = null;
+            try {
+                const allKbs = await getKnowledgeBases(token);
+                const kbList: any[] = Array.isArray(allKbs) ? allKbs : (allKbs?.items || []);
+                existingKb = kbList.find((kb: any) => kb.name === expectedKbName);
+            } catch (e) {
+                console.warn('[CrmContextService] Could not fetch knowledge bases:', e);
             }
 
-            console.log(`[CrmContextService] Knowledge base created with ID: ${kb.id}`);
+            let kbToLink = existingKb;
+
+            if (!kbToLink) {
+                // Create new Knowledge Base
+                console.log(`[CrmContextService] Creating knowledge base for: ${contactName}`);
+                const kb = await createNewKnowledge(
+                    token,
+                    expectedKbName,
+                    `Documentos del contacto ${contactName}`,
+                    [
+                        // Public read + write: all authenticated users can see and upload files to CRM KBs.
+                        // Read is required for visibility; write enables file uploads.
+                        // IMPORTANT: Requires "sharing.public_knowledge" permission enabled in Open WebUI admin settings,
+                        // otherwise the backend silently strips all grants (see knowledge.py create endpoint).
+                        // See Feature 5.1 in .CRM_EMBEDDED.md for full rationale.
+                        { principal_type: 'user', principal_id: '*', permission: 'read' },
+                        { principal_type: 'user', principal_id: '*', permission: 'write' }
+                    ]
+                );
+
+                if (!kb || !kb.id) {
+                    console.error('[CrmContextService] Failed to create knowledge base.');
+                    return;
+                }
+
+                console.log(`[CrmContextService] Knowledge base created with ID: ${kb.id}`);
+                kbToLink = kb;
+            } else {
+                console.log(`[CrmContextService] Found existing unlinked KB: ${kbToLink.id}`);
+            }
 
             // Link KB to folder via native folder.data.files mechanism
             const updatedFiles = [
                 ...existingFiles,
-                { type: 'collection', id: kb.id, name: kb.name }
+                { type: 'collection', id: kbToLink.id, name: kbToLink.name }
             ];
 
-            await updateFolderById(token, folderId, {
+            const updatedFolder = await updateFolderById(token, folderId, {
                 data: {
                     ...(folderData || {}),
                     files: updatedFiles
                 }
             });
 
-            console.log(`[CrmContextService] Knowledge base linked to folder via data.files.`);
+            if (!updatedFolder) {
+                console.error('[CrmContextService] updateFolderById returned null — folder.data may not have persisted.');
+            } else {
+                console.log('[CrmContextService] Knowledge base linked to folder via data.files.');
+            }
         } catch (error) {
             console.error('[CrmContextService] Error ensuring knowledge base:', error);
             // Non-fatal: folder context still works without KB

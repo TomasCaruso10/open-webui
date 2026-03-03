@@ -112,6 +112,11 @@
 			if (sessionUser) {
 				await user.set(sessionUser);
 				console.log('[pre-auth] Bridge token valid for:', sessionUser.name);
+				// Socket connected before the bridge token was available,
+				// so user-join was skipped. Emit it now to register the user.
+				if ($socket?.connected) {
+					$socket.emit('user-join', { auth: { token: preAuthToken } });
+				}
 				return true;
 			}
 			localStorage.removeItem('token');

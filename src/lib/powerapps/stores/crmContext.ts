@@ -1,6 +1,7 @@
 import { writable, derived } from 'svelte/store';
 
 export interface CrmFolderContext {
+	contactGuid: string;
 	folderId: string;
 	folderName: string;
 }
