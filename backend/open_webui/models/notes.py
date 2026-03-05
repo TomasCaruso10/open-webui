@@ -77,6 +77,7 @@ class NoteItemResponse(BaseModel):
     id: str
     title: str
     data: Optional[dict]
+    meta: Optional[dict] = None
     updated_at: int
     created_at: int
     user: Optional[UserResponse] = None
