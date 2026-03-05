@@ -63,6 +63,8 @@
 	export let files = [];
 	export let messages = [];
 
+	export let chatId: string | null = null;
+
 	export let onInsert = (content) => {};
 	export let onStop = () => {};
 	export let onEdited = () => {};
@@ -76,14 +78,14 @@
 
 	let messagesContainerElement: HTMLDivElement;
 
-	let system = '';
+	let system = ‘’;
 	let editEnabled = false;
 	let chatInputElement = null;
 
 	const DEFAULT_DOCUMENT_EDITOR_PROMPT = `You are an expert document editor.
 
 ## Task
-Based on the user's instruction, update and enhance the existing notes or selection by incorporating relevant and accurate information from the provided context in the content's primary language. Ensure all edits strictly follow the user’s intent.
+Based on the user’s instruction, update and enhance the existing notes or selection by incorporating relevant and accurate information from the provided context in the content’s primary language. Ensure all edits strictly follow the user’s intent.
 
 ## Input Structure
 - Existing notes: Enclosed within <notes></notes> XML tags.
@@ -95,10 +97,34 @@ Based on the user's instruction, update and enhance the existing notes or select
 - If a selection is provided, edit **only** the content within <selection></selection>. Leave unselected parts unchanged.
 - If no selection is provided, edit the entire notes.
 - Deliver a single, rewritten version of the notes in markdown format.
-- Integrate information from the context only if it directly supports the user's instruction.
+- Integrate information from the context only if it directly supports the user’s instruction.
 - Use clear, organized markdown elements: headings, lists, task lists ([ ]) where tasks or checklists are strongly implied, bold and italic text as appropriate.
 - Focus on improving clarity, completeness, and usefulness of the notes.
 - Return only the final, fully-edited markdown notes—do not include explanations, reasoning, or XML tags.
+`;
+
+	const SERENA_DOCUMENT_EDITOR_PROMPT = `Sos un editor experto de informes de orientacion laboral.
+
+## Tarea
+Edita el informe segun la instruccion del orientador. El informe tiene 6 secciones:
+1. Resumen del Curriculum Vitae
+2. Sugerencias para el CV
+3. Sugerencias de Formacion
+4. Sugerencias de Busqueda de Empleo
+5. Plan de Accion
+6. Mensaje Motivacional
+
+## Estructura de entrada
+- Informe actual: dentro de <notes></notes>.
+- Seleccion actual (si hay): dentro de <selection></selection>.
+- Instruccion de edicion: en el mensaje del usuario.
+
+## Instrucciones de salida
+- Si hay seleccion, edita SOLO el contenido de <selection></selection>.
+- Si no hay seleccion, edita el informe completo.
+- Entrega una unica version reescrita en formato markdown.
+- Usa español rioplatense formal pero accesible.
+- Devuelve solo el markdown final, sin explicaciones ni tags XML.
 `;
 
 	let scrolledToBottom = true;
@@ -158,9 +184,11 @@ Based on the user's instruction, update and enhance the existing notes or select
 		system = '';
 
 		if (editEnabled) {
-			system = `${DEFAULT_DOCUMENT_EDITOR_PROMPT}\n\n`;
+			system = `${chatId ? SERENA_DOCUMENT_EDITOR_PROMPT : DEFAULT_DOCUMENT_EDITOR_PROMPT}\n\n`;
 		} else {
-			system = `You are a helpful assistant. Please answer the user's questions based on the context provided.\n\n`;
+			system = chatId
+				? `Sos Serena, asistente de orientacion laboral de INEFOP Uruguay. Responde las preguntas del orientador sobre el informe.\n\n`
+				: `You are a helpful assistant. Please answer the user's questions based on the context provided.\n\n`;
 		}
 
 		system +=

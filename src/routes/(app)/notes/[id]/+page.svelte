@@ -12,6 +12,8 @@
 
 	let loaded = false;
 
+	$: chatId = $page.url.searchParams.get('chatId') || null;
+
 	onMount(async () => {
 		loaded = true;
 	});
@@ -22,6 +24,6 @@
 		id="note-container"
 		class="w-full h-full {$showSidebar ? 'md:max-w-[calc(100%-var(--sidebar-width))]' : ''}"
 	>
-		<NoteEditor id={$page.params.id} />
+		<NoteEditor id={$page.params.id} {chatId} />
 	</div>
 {/if}

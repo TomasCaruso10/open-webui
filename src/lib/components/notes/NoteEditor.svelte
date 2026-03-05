@@ -97,6 +97,7 @@
 	import AdjustmentsHorizontalOutline from '../icons/AdjustmentsHorizontalOutline.svelte';
 
 	export let id: null | string = null;
+	export let chatId: string | null = null;
 
 	let editor = null;
 	let note = null;
@@ -1452,6 +1453,7 @@ Provide the enhanced notes in markdown format. Use markdown syntax for headings,
 				{inputElement}
 				{selectedContent}
 				{files}
+				{chatId}
 				onInsert={insertHandler}
 				onStop={stopResponseHandler}
 				{onEdited}
