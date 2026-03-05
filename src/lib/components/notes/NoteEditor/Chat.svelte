@@ -78,14 +78,14 @@
 
 	let messagesContainerElement: HTMLDivElement;
 
-	let system = ‘’;
+	let system = '';
 	let editEnabled = false;
 	let chatInputElement = null;
 
 	const DEFAULT_DOCUMENT_EDITOR_PROMPT = `You are an expert document editor.
 
 ## Task
-Based on the user’s instruction, update and enhance the existing notes or selection by incorporating relevant and accurate information from the provided context in the content’s primary language. Ensure all edits strictly follow the user’s intent.
+Based on the user's instruction, update and enhance the existing notes or selection by incorporating relevant and accurate information from the provided context in the content's primary language. Ensure all edits strictly follow the user's intent.
 
 ## Input Structure
 - Existing notes: Enclosed within <notes></notes> XML tags.
@@ -97,7 +97,7 @@ Based on the user’s instruction, update and enhance the existing notes or sele
 - If a selection is provided, edit **only** the content within <selection></selection>. Leave unselected parts unchanged.
 - If no selection is provided, edit the entire notes.
 - Deliver a single, rewritten version of the notes in markdown format.
-- Integrate information from the context only if it directly supports the user’s instruction.
+- Integrate information from the context only if it directly supports the user's instruction.
 - Use clear, organized markdown elements: headings, lists, task lists ([ ]) where tasks or checklists are strongly implied, bold and italic text as appropriate.
 - Focus on improving clarity, completeness, and usefulness of the notes.
 - Return only the final, fully-edited markdown notes—do not include explanations, reasoning, or XML tags.
