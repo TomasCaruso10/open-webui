@@ -35,7 +35,7 @@ export class CrmContextService {
             return null;
         }
 
-        const contactGuid = folderIdParam.replace(/\/$/, '');
+        const contactGuid = folderIdParam.replace(/\/$/, '').toLowerCase();
         const displayName = folderNameParam || contactGuid;
         const cacheKey = `serena_folder_${contactGuid}`;
 
@@ -122,8 +122,8 @@ export class CrmContextService {
      * - If a KB is already linked, this is a no-op
      * - If no KB exists for this contactGuid, creates one and links it
      *
-     * KB naming: `Docs: ${contactGuid}` — uses the CRM GUID (not the display name) so the
-     * KB is always found even if the contact's name changes in CRM.
+     * KB naming: name is the contact's display name (readable), description is
+     * `contact:${contactGuid}` (stable GUID-based matching key).
      *
      * Access strategy (Feature 5.1):
      * KBs are created with public read+write access (principal_id: "*").
@@ -155,13 +155,18 @@ export class CrmContextService {
             }
 
             // Check 2: KB exists in OWUI but not linked (update may have silently failed before)
-            // KB name uses contactGuid so it's found even if the contact name changes
-            const expectedKbName = `Docs: ${contactGuid}`;
+            // Match by description "contact:{guid}" for stable GUID-based lookup
+            const expectedKbDesc = `contact:${contactGuid}`;
+            const legacyKbName = `Docs: ${contactGuid}`;
             let existingKb: any = null;
             try {
                 const allKbs = await getKnowledgeBases(token);
                 const kbList: any[] = Array.isArray(allKbs) ? allKbs : (allKbs?.items || []);
-                existingKb = kbList.find((kb: any) => kb.name === expectedKbName);
+                existingKb = kbList.find((kb: any) => kb.description === expectedKbDesc);
+                // Fallback: match by legacy name for KBs created before this change
+                if (!existingKb) {
+                    existingKb = kbList.find((kb: any) => kb.name === legacyKbName);
+                }
             } catch (e) {
                 console.warn('[CrmContextService] Could not fetch knowledge bases:', e);
             }
@@ -173,8 +178,8 @@ export class CrmContextService {
                 console.log(`[CrmContextService] Creating knowledge base for: ${contactName}`);
                 const kb = await createNewKnowledge(
                     token,
-                    expectedKbName,
-                    `Documentos del contacto ${contactName}`,
+                    contactName,
+                    expectedKbDesc,
                     [
                         // Public read + write: all authenticated users can see and upload files to CRM KBs.
                         // Read is required for visibility; write enables file uploads.
