@@ -104,7 +104,16 @@
 	// crm_override: Try pre-auth token from iframe bridge.
 	// No SDK fallback — if bridge token fails, redirect to /auth.
 	async function attemptPreAuth(preAuthPromise) {
-		const preAuthToken = await preAuthPromise;
+		let preAuthToken = await preAuthPromise;
+
+		// crm_override: If the initial 5s handshake timed out but we're in an iframe,
+		// retry via auth:renew. The bridge may have obtained the SSO token after our
+		// timeout window (common after overnight idle when aut_GetSsoToken is slow).
+		if (!preAuthToken && window !== window.parent) {
+			console.log('[pre-auth] Initial handshake timed out, retrying via renewal...');
+			preAuthToken = await requestTokenRenewal();
+		}
+
 		if (preAuthToken) {
 			console.log('[pre-auth] Validating bridge token...');
 			localStorage.token = preAuthToken;
@@ -834,12 +843,28 @@
 			await WEBUI_NAME.set(backendConfig.name);
 
 			if ($config) {
-				await setupSocket($config.features?.enable_websocket ?? true);
-
 				const currentUrl = `${window.location.pathname}${window.location.search}`;
 				const encodedUrl = encodeURIComponent(currentUrl);
 
-				if (localStorage.token) {
+				// crm_override: In iframe context the bridge is the single source of truth
+				// for authentication. Discard any stale localStorage token so we don't waste
+				// time validating an expired JWT or connect the socket with dead credentials.
+				const inIframe = window !== window.parent;
+				if (inIframe) {
+					localStorage.removeItem('token');
+				}
+
+				await setupSocket($config.features?.enable_websocket ?? true);
+
+				if (inIframe) {
+					// crm_override: Always authenticate via bridge — skip localStorage path entirely.
+					const ok = await attemptPreAuth(preAuthPromise);
+					if (ok) {
+						await config.set(await getBackendConfig());
+					} else if ($page.url.pathname !== '/auth') {
+						await goto(`/auth?redirect=${encodedUrl}`);
+					}
+				} else if (localStorage.token) {
 					// Get Session User Info
 					const sessionUser = await getSessionUser(localStorage.token).catch((error) => {
 						toast.error(`${error}`);
@@ -852,22 +877,10 @@
 					} else {
 						// Redirect Invalid Session User to /auth Page
 						localStorage.removeItem('token');
-						// crm_override: Try pre-auth (bridge token) → redirect
-						const ok = await attemptPreAuth(preAuthPromise);
-						if (ok) {
-							await config.set(await getBackendConfig());
-						} else {
-							await goto(`/auth?redirect=${encodedUrl}`);
-						}
-					}
-				} else {
-					// crm_override: Try pre-auth (bridge token) → redirect
-					const ok = await attemptPreAuth(preAuthPromise);
-					if (ok) {
-						await config.set(await getBackendConfig());
-					} else if ($page.url.pathname !== '/auth') {
 						await goto(`/auth?redirect=${encodedUrl}`);
 					}
+				} else if ($page.url.pathname !== '/auth') {
+					await goto(`/auth?redirect=${encodedUrl}`);
 				}
 			}
 		} else {
