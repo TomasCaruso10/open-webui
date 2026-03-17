@@ -95,15 +95,18 @@ export class CrmContextService {
             }
         }
 
-        // 4. Ensure KB linked
+        // 4. Ensure KB linked + trigger initial sync if KB was just linked
         if (targetFolderId) {
-            await CrmContextService.ensureKnowledgeBase(
+            const kbJustLinked = await CrmContextService.ensureKnowledgeBase(
                 token,
                 targetFolderId,
                 contactGuid,
                 displayName,
                 folderData
             );
+            if (kbJustLinked) {
+                CrmContextService.triggerInitialSync(token, contactGuid, displayName);
+            }
         }
 
         // 5. Set CRM context store (survives navigation, never cleared)
@@ -143,7 +146,7 @@ export class CrmContextService {
         contactGuid: string,
         contactName: string,
         folderData: Record<string, any> | null
-    ): Promise<void> {
+    ): Promise<boolean> {
         try {
             const existingFiles: any[] = folderData?.files || [];
 
@@ -151,7 +154,7 @@ export class CrmContextService {
             const linkedKb = existingFiles.find((f: any) => f.type === 'collection');
             if (linkedKb) {
                 console.log('[CrmContextService] Knowledge base already linked to folder. Skipping creation.');
-                return;
+                return false;
             }
 
             // Check 2: KB exists in OWUI but not linked (update may have silently failed before)
@@ -193,7 +196,7 @@ export class CrmContextService {
 
                 if (!kb || !kb.id) {
                     console.error('[CrmContextService] Failed to create knowledge base.');
-                    return;
+                    return false;
                 }
 
                 console.log(`[CrmContextService] Knowledge base created with ID: ${kb.id}`);
@@ -220,9 +223,39 @@ export class CrmContextService {
             } else {
                 console.log('[CrmContextService] Knowledge base linked to folder via data.files.');
             }
+            return true;  // KB was just linked (new or previously unlinked)
         } catch (error) {
             console.error('[CrmContextService] Error ensuring knowledge base:', error);
             // Non-fatal: folder context still works without KB
+            return false;
+        }
+    }
+
+    /**
+     * Trigger initial sync of existing SharePoint files for a contact.
+     * Fire-and-forget: the backend runs the sync in a background task.
+     * If the sync fails, files will still be synced via Power Automate on next change.
+     */
+    private static async triggerInitialSync(
+        token: string,
+        contactGuid: string,
+        contactName: string
+    ): Promise<void> {
+        try {
+            const baseUrl = window.location.port === '5173'
+                ? 'https://localhost:3000'  // Vite dev → Caddy
+                : '';                       // Production → same origin
+            await fetch(`${baseUrl}/serena-api/sync/sharepoint-initial`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ contact_id: contactGuid, contact_name: contactName })
+            });
+            console.log('[CrmContextService] Initial SharePoint sync triggered.');
+        } catch (e) {
+            console.warn('[CrmContextService] Initial sync trigger failed (non-fatal):', e);
         }
     }
 }
