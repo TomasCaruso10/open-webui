@@ -385,10 +385,12 @@
 					</div>
 				{/if}
 
-				{#if $isCrmEmbedded}
-					<CrmSidebar />
-				{:else}
-					<Sidebar />
+				{#if !$page.url.searchParams.has('embed')}
+					{#if $isCrmEmbedded}
+						<CrmSidebar />
+					{:else}
+						<Sidebar />
+					{/if}
 				{/if}
 
 				{#if loaded}
