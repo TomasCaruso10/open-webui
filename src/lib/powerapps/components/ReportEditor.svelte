@@ -3,7 +3,8 @@
 	 * ReportEditor — two-panel layout for editing reports.
 	 *
 	 * Left panel: NoteEditor (full OWUI note editor with all features)
-	 * Right panel: Chat via iframe (same chat thread, full features: citations, streaming, thinking)
+	 * Right panel: Chat via iframe (per-orientador: owner sees original chat,
+	 *              others get their own persistent chat stored in note.meta.editor_chats)
 	 * Top bar: Finalize button, status badge
 	 *
 	 * Auth relay: The ReportEditor acts as an auth bridge for the chat iframe.
@@ -13,6 +14,9 @@
 	import { onMount, onDestroy, getContext } from 'svelte';
 	import { toast } from 'svelte-sonner';
 	import { SERENA_API_URL } from '$lib/constants';
+	import { user } from '$lib/stores';
+	import { getNoteById, updateNoteById } from '$lib/apis/notes';
+	import { createNewChat } from '$lib/apis/chats';
 
 	import NoteEditor from '$lib/components/notes/NoteEditor.svelte';
 
@@ -22,8 +26,46 @@
 	let finalizing = false;
 	let status: 'borrador' | 'finalizado' = 'borrador';
 	let chatIframe: HTMLIFrameElement;
+	let resolvedChatId: string | null = null;
+	let chatReady = false;
 
 	const i18n = getContext('i18n');
+
+	// ── Resolve which chat to show per-orientador ──
+	async function resolveEditorChat(token: string): Promise<string | null> {
+		if (!chatId) return null;
+
+		try {
+			const note = await getNoteById(token, id);
+			if (!note) return chatId;
+
+			const userId = $user?.id;
+			if (!userId) return chatId;
+
+			// Owner of the note → use original chat
+			if (note.user_id === userId) return chatId;
+
+			// Non-owner: check for existing editor chat
+			const editorChats = note.meta?.editor_chats as Record<string, string> | undefined;
+			if (editorChats?.[userId]) return editorChats[userId];
+
+			// First time: create a new chat for this orientador
+			const newChat = await createNewChat(token, { chat: {} }, null);
+			if (!newChat?.id) return null;
+
+			// Persist the association in note meta
+			await updateNoteById(token, id, {
+				meta: {
+					editor_chats: { ...(editorChats || {}), [userId]: newChat.id }
+				}
+			});
+
+			return newChat.id;
+		} catch (e) {
+			console.warn('[report-editor] Could not resolve editor chat:', e);
+			return chatId;
+		}
+	}
 
 	// ── Auth relay: act as bridge for the chat iframe ──
 	// When the chat iframe sends auth:ready/auth:renew, we reply with our token.
@@ -52,19 +94,28 @@
 	onMount(async () => {
 		window.addEventListener('message', handleMessage);
 
-		// Fetch report status from Dataverse via backend
-		try {
-			const token = localStorage.getItem('token') || '';
-			const res = await fetch(`${SERENA_API_URL}/report/${id}/status`, {
-				headers: { 'Authorization': `Bearer ${token}` }
-			});
-			if (res.ok) {
-				const data = await res.json();
-				status = data.status === 'finalizado' ? 'finalizado' : 'borrador';
-			}
-		} catch (e) {
-			console.warn('[report-editor] Could not fetch report status:', e);
-		}
+		const token = localStorage.getItem('token') || '';
+
+		// Resolve per-orientador chat + fetch report status in parallel
+		const [editorChatId] = await Promise.all([
+			resolveEditorChat(token),
+			(async () => {
+				try {
+					const res = await fetch(`${SERENA_API_URL}/report/${id}/status`, {
+						headers: { 'Authorization': `Bearer ${token}` }
+					});
+					if (res.ok) {
+						const data = await res.json();
+						status = data.status === 'finalizado' ? 'finalizado' : 'borrador';
+					}
+				} catch (e) {
+					console.warn('[report-editor] Could not fetch report status:', e);
+				}
+			})()
+		]);
+
+		resolvedChatId = editorChatId;
+		chatReady = true;
 	});
 
 	onDestroy(() => {
@@ -140,12 +191,12 @@
 			<NoteEditor {id} {chatId} />
 		</div>
 
-		<!-- Right: Chat via iframe (auth relayed by this component) -->
-		{#if chatId}
+		<!-- Right: Chat via iframe (per-orientador, auth relayed by this component) -->
+		{#if chatReady && resolvedChatId}
 			<div class="w-[400px] shrink-0 border-l border-gray-200 dark:border-gray-700">
 				<iframe
 					bind:this={chatIframe}
-					src="/c/{chatId}?embed=true"
+					src="/c/{resolvedChatId}?embed=true"
 					title="Chat"
 					class="w-full h-full border-0"
 					allow="clipboard-write"
