@@ -4,6 +4,8 @@ export interface CrmFolderContext {
 	contactGuid: string;
 	folderId: string;
 	folderName: string;
+	noteId?: string; // Currently open report note
+	noteTitle?: string;
 }
 
 export interface CrmContext {

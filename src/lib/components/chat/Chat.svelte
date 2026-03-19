@@ -2132,7 +2132,7 @@
 				},
 				// crm override : send embedede context to backend
 				embedded_context: $crmContext
-					? { record_id: $crmContext.folder.contactGuid, entity_name: 'contact' }
+					? { record_id: $crmContext.folder.contactGuid, entity_name: 'contact', note_id: $crmContext.folder.noteId || undefined, note_title: $crmContext.folder.noteTitle || undefined }
 					: undefined,
 				model_item: $models.find((m) => m.id === model.id),
 

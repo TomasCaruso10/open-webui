@@ -29,6 +29,8 @@ export class CrmContextService {
     static async initCrmContext(searchParams: URLSearchParams, token: string) {
         const folderIdParam = searchParams.get('folder_id'); // CRM contact GUID
         const folderNameParam = searchParams.get('folder_name');
+        const noteIdParam = searchParams.get('note_id'); // Report note being edited
+        const noteTitleParam = searchParams.get('note_title');
 
         if (!folderIdParam) {
             console.log('[CrmContextService] No folder_id provided. Ignoring context.');
@@ -111,7 +113,7 @@ export class CrmContextService {
 
         // 5. Set CRM context store (survives navigation, never cleared)
         if (targetFolderId) {
-            crmContext.set({ folder: { contactGuid, folderId: targetFolderId, folderName: displayName } });
+            crmContext.set({ folder: { contactGuid, folderId: targetFolderId, folderName: displayName, noteId: noteIdParam || undefined, noteTitle: noteTitleParam || undefined } });
         }
 
         return { folderId: targetFolderId };
