@@ -98,6 +98,7 @@
 
 	export let id: null | string = null;
 	export let chatId: string | null = null;
+	export let collaboration: boolean = true;
 
 	let editor = null;
 	let note = null;
@@ -879,6 +880,37 @@ Provide the enhanced notes in markdown format. Use markdown syntax for headings,
 					editing = false;
 					streaming = false;
 					onEdited();
+
+					// Highlight changed sections after content is applied
+					if (data.highlights?.length && editor) {
+						requestAnimationFrame(() => {
+							const doc = editor.state.doc;
+							for (const text of data.highlights) {
+								doc.descendants((node, pos) => {
+									if (node.isText && node.text?.includes(text)) {
+										const idx = node.text.indexOf(text);
+										editor.chain()
+											.setTextSelection({ from: pos + idx, to: pos + idx + text.length })
+											.setHighlight({ color: '#fef08a' })
+											.run();
+									}
+								});
+							}
+							editor.commands.setTextSelection(0);
+
+							// Clear highlights on first user interaction (without selectAll to avoid spellcheck trigger)
+							const clearHighlights = () => {
+								const { tr } = editor.state;
+								const highlightMark = editor.schema.marks.highlight;
+								if (highlightMark) {
+									tr.removeMark(0, editor.state.doc.content.size, highlightMark);
+									editor.view.dispatch(tr);
+								}
+							};
+							editor.view.dom.addEventListener('mousedown', clearHighlights, { once: true });
+							editor.view.dom.addEventListener('keydown', clearHighlights, { once: true });
+						});
+					}
 					break;
 			}
 		};
@@ -1228,7 +1260,7 @@ Provide the enhanced notes in markdown format. Use markdown syntax for headings,
 							bind:value={note.data.content.json}
 							html={editorHtml}
 							documentId={`note:${note.id}`}
-							collaboration={true}
+							{collaboration}
 							socket={$socket}
 							user={$user}
 							dragHandle={true}

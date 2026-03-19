@@ -696,6 +696,7 @@
 				...(dragHandle ? [ListItemDragHandle] : []),
 				Placeholder.configure({ placeholder: () => _placeholder, showOnlyWhenEditable: false }),
 				SelectionDecoration,
+				Highlight.configure({ multicolor: true }),
 
 				...(richText
 					? [

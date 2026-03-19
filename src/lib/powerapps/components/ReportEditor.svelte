@@ -188,7 +188,7 @@
 	<div class="flex-1 flex min-h-0">
 		<!-- Left: Note editor -->
 		<div class="flex-1 min-w-0 overflow-hidden">
-			<NoteEditor {id} {chatId} />
+			<NoteEditor {id} {chatId} collaboration={false} />
 		</div>
 
 		<!-- Right: Chat via iframe (per-orientador, auth relayed by this component) -->
