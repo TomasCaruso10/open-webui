@@ -15,6 +15,7 @@
 	import { toast } from 'svelte-sonner';
 	import { SERENA_API_URL } from '$lib/constants';
 	import { user } from '$lib/stores';
+	import { requestTokenRenewal } from '$lib/powerapps/services/crmAuth';
 	import { getNoteById, updateNoteById } from '$lib/apis/notes';
 	import { createNewChat } from '$lib/apis/chats';
 
@@ -104,13 +105,27 @@
 	}
 
 	// ── Auth relay: act as bridge for the chat iframe ──
-	function handleMessage(event: MessageEvent) {
+	async function handleMessage(event: MessageEvent) {
 		const type = event.data?.type;
 		if (type !== 'auth:ready' && type !== 'auth:renew') return;
 
-		const token = localStorage.getItem('token');
+		let token: string | null = null;
+
+		if (type === 'auth:renew') {
+			// Request FRESH token from the CRM bridge, not stale localStorage
+			token = await requestTokenRenewal();
+			if (token) {
+				localStorage.token = token;
+			}
+		}
+
+		// For auth:ready or if renewal failed, use current localStorage token
 		if (!token) {
-			console.warn('[report-editor] No token in localStorage to relay');
+			token = localStorage.getItem('token');
+		}
+
+		if (!token) {
+			console.warn('[report-editor] No token available to relay');
 			return;
 		}
 
