@@ -8,6 +8,8 @@
 	let loaded = false;
 
 	$: chatId = $page.url.searchParams.get('chatId') || null;
+	$: contactId = $page.url.searchParams.get('contactId') || null;
+	$: contactName = $page.url.searchParams.get('contactName') || null;
 
 	onMount(async () => {
 		// Hide sidebar for report editor — maximize space
@@ -21,6 +23,6 @@
 		id="report-container"
 		class="w-full h-full"
 	>
-		<ReportEditor id={$page.params.id} {chatId} />
+		<ReportEditor id={$page.params.id} {chatId} {contactId} {contactName} />
 	</div>
 {/if}

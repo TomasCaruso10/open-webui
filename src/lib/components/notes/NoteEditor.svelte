@@ -214,6 +214,7 @@
 				data: {
 					files: files
 				},
+				meta: note?.meta,
 				access_grants: note?.access_grants ?? []
 			}).catch((e) => {
 				toast.error(`${e}`);

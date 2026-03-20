@@ -223,7 +223,7 @@
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
-					req: { report_text: md, voice: 'alloy', note_id: id },
+					req: { report_text: md, voice: 'echo', note_id: id },
 					oauth_token: token
 				})
 			});
