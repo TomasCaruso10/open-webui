@@ -508,6 +508,21 @@
 					eventConfirmationInputValue = data?.value ?? '';
 				// crm override: event from Serena backend — forward to PowerApps bridge
 				} else if (type === 'crm') {
+					// Update crmContext when a note is opened so next message includes note_id
+					if (data?.action === 'open_note' && data?.extra?.note_id) {
+						const ctx = get(crmContext);
+						if (ctx) {
+							crmContext.set({
+								...ctx,
+								folder: {
+									...ctx.folder,
+									noteId: data.extra.note_id,
+									noteTitle: data.extra.title || undefined
+								}
+							});
+						}
+					}
+
 					try {
 						const { CrmEventBridge } = await import('$lib/powerapps/services/CrmEventBridge');
 						CrmEventBridge.dispatch(data);
@@ -536,6 +551,18 @@
 		origin: string;
 		data: { type: string; text: string };
 	}) => {
+		// note:closed comes from parent (PowerApps bridge) — different origin
+		if (event.data?.type === 'note:closed') {
+			const ctx = get(crmContext);
+			if (ctx) {
+				crmContext.set({
+					...ctx,
+					folder: { ...ctx.folder, noteId: undefined, noteTitle: undefined }
+				});
+			}
+			return;
+		}
+
 		if (event.origin !== window.origin) {
 			return;
 		}
