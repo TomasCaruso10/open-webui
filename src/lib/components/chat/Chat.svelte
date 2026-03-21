@@ -551,7 +551,21 @@
 		origin: string;
 		data: { type: string; text: string };
 	}) => {
-		// note:closed comes from parent (PowerApps bridge) — different origin
+		// note:opened / note:closed come from parent (PowerApps bridge) — different origin
+		if (event.data?.type === 'note:opened' && event.data?.note_id) {
+			const ctx = get(crmContext);
+			if (ctx) {
+				crmContext.set({
+					...ctx,
+					folder: {
+						...ctx.folder,
+						noteId: event.data.note_id,
+						noteTitle: event.data.title || undefined
+					}
+				});
+			}
+			return;
+		}
 		if (event.data?.type === 'note:closed') {
 			const ctx = get(crmContext);
 			if (ctx) {
