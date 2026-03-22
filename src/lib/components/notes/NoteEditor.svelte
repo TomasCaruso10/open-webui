@@ -880,7 +880,11 @@ Provide the enhanced notes in markdown format. Use markdown syntax for headings,
 					}
 					editing = false;
 					streaming = false;
-					onEdited();
+					// Skip onEdited() when highlights present — its setContent()
+					// would race with requestAnimationFrame and destroy highlights
+					if (!data.highlights?.length) {
+						onEdited();
+					}
 
 					// Highlight changed sections after content is applied
 					if (data.highlights?.length && editor) {
