@@ -1,5 +1,4 @@
-import { getFolders, getFolderById, createNewFolder, updateFolderById } from '$lib/apis/folders';
-import { createNewKnowledge, getKnowledgeBases } from '$lib/apis/knowledge';
+import { getFolders, getFolderById, createNewFolder } from '$lib/apis/folders';
 import { crmContext } from '$lib/powerapps/stores/crmContext';
 
 export class CrmContextService {
@@ -99,16 +98,14 @@ export class CrmContextService {
 
         // 4. Ensure KB linked + trigger initial sync if KB was just linked
         if (targetFolderId) {
-            const kbJustLinked = await CrmContextService.ensureKnowledgeBase(
+            // Backend handles KB creation + folder linking + initial sync in one call
+            await CrmContextService.ensureKnowledgeBase(
                 token,
                 targetFolderId,
                 contactGuid,
                 displayName,
                 folderData
             );
-            if (kbJustLinked) {
-                CrmContextService.triggerInitialSync(token, contactGuid, displayName);
-            }
         }
 
         // 5. Set CRM context store (survives navigation, never cleared)
@@ -121,26 +118,12 @@ export class CrmContextService {
 
     /**
      * Ensures the folder has a Knowledge Base linked via folder.data.files.
-     * Uses Open WebUI's native folder-knowledge mechanism:
-     * - KBs are stored in folder.data.files as { type: "collection", id: kb_id, name: kb_name }
-     * - The middleware automatically injects folder.data.files into every chat request
-     * - If a KB is already linked, this is a no-op
-     * - If no KB exists for this contactGuid, creates one and links it
      *
-     * KB naming: name is the contact's display name (readable), description is
-     * `contact:${contactGuid}` (stable GUID-based matching key).
+     * Delegates KB creation and folder linking to the backend endpoint
+     * POST /serena-api/sync/ensure-contact-kb, which uses admin credentials.
+     * This way users don't need workspace.knowledge permissions.
      *
-     * Access strategy (Feature 5.1):
-     * KBs are created with public read+write access (principal_id: "*").
-     * - Read grant: makes the KB visible to all authenticated users.
-     * - Write grant: allows any user to upload/edit/delete files in the KB.
-     * Requires "sharing.public_knowledge" enabled in Open WebUI admin settings.
-     *
-     * @param token Auth token
-     * @param folderId The OWUI folder ID
-     * @param contactGuid CRM contact GUID (used for KB name — stable identifier)
-     * @param contactName Display name for the KB description
-     * @param folderData Current folder.data (may be null)
+     * The backend also triggers initial SharePoint sync automatically.
      */
     private static async ensureKnowledgeBase(
         token: string,
@@ -150,114 +133,41 @@ export class CrmContextService {
         folderData: Record<string, any> | null
     ): Promise<boolean> {
         try {
+            // Quick local check — if KB already linked, skip
             const existingFiles: any[] = folderData?.files || [];
-
-            // Check 1: KB already linked in folder.data.files
-            const linkedKb = existingFiles.find((f: any) => f.type === 'collection');
-            if (linkedKb) {
-                console.log('[CrmContextService] Knowledge base already linked to folder. Skipping creation.');
+            if (existingFiles.some((f: any) => f.type === 'collection')) {
+                console.log('[CrmContextService] KB already linked. Skipping.');
                 return false;
             }
 
-            // Check 2: KB exists in OWUI but not linked (update may have silently failed before)
-            // Match by description "contact:{guid}" for stable GUID-based lookup
-            const expectedKbDesc = `contact:${contactGuid}`;
-            const legacyKbName = `Docs: ${contactGuid}`;
-            let existingKb: any = null;
-            try {
-                const allKbs = await getKnowledgeBases(token);
-                const kbList: any[] = Array.isArray(allKbs) ? allKbs : (allKbs?.items || []);
-                existingKb = kbList.find((kb: any) => kb.description === expectedKbDesc);
-                // Fallback: match by legacy name for KBs created before this change
-                if (!existingKb) {
-                    existingKb = kbList.find((kb: any) => kb.name === legacyKbName);
-                }
-            } catch (e) {
-                console.warn('[CrmContextService] Could not fetch knowledge bases:', e);
-            }
-
-            let kbToLink = existingKb;
-
-            if (!kbToLink) {
-                // Create new Knowledge Base
-                console.log(`[CrmContextService] Creating knowledge base for: ${contactName}`);
-                const kb = await createNewKnowledge(
-                    token,
-                    contactName,
-                    expectedKbDesc,
-                    [
-                        // Public read + write: all authenticated users can see and upload files to CRM KBs.
-                        // Read is required for visibility; write enables file uploads.
-                        // IMPORTANT: Requires "sharing.public_knowledge" permission enabled in Open WebUI admin settings,
-                        // otherwise the backend silently strips all grants (see knowledge.py create endpoint).
-                        // See Feature 5.1 in .CRM_EMBEDDED.md for full rationale.
-                        { principal_type: 'user', principal_id: '*', permission: 'read' },
-                        { principal_type: 'user', principal_id: '*', permission: 'write' }
-                    ]
-                );
-
-                if (!kb || !kb.id) {
-                    console.error('[CrmContextService] Failed to create knowledge base.');
-                    return false;
-                }
-
-                console.log(`[CrmContextService] Knowledge base created with ID: ${kb.id}`);
-                kbToLink = kb;
-            } else {
-                console.log(`[CrmContextService] Found existing unlinked KB: ${kbToLink.id}`);
-            }
-
-            // Link KB to folder via native folder.data.files mechanism
-            const updatedFiles = [
-                ...existingFiles,
-                { type: 'collection', id: kbToLink.id, name: kbToLink.name }
-            ];
-
-            const updatedFolder = await updateFolderById(token, folderId, {
-                data: {
-                    ...(folderData || {}),
-                    files: updatedFiles
-                }
-            });
-
-            if (!updatedFolder) {
-                console.error('[CrmContextService] updateFolderById returned null — folder.data may not have persisted.');
-            } else {
-                console.log('[CrmContextService] Knowledge base linked to folder via data.files.');
-            }
-            return true;  // KB was just linked (new or previously unlinked)
-        } catch (error) {
-            console.error('[CrmContextService] Error ensuring knowledge base:', error);
-            // Non-fatal: folder context still works without KB
-            return false;
-        }
-    }
-
-    /**
-     * Trigger initial sync of existing SharePoint files for a contact.
-     * Fire-and-forget: the backend runs the sync in a background task.
-     * If the sync fails, files will still be synced via Power Automate on next change.
-     */
-    private static async triggerInitialSync(
-        token: string,
-        contactGuid: string,
-        contactName: string
-    ): Promise<void> {
-        try {
-            const baseUrl = window.location.port === '5173'
-                ? 'https://localhost:3000'  // Vite dev → Caddy
-                : '';                       // Production → same origin
-            await fetch(`${baseUrl}/serena-api/sync/sharepoint-initial`, {
+            // Delegate to backend (uses admin credentials + triggers sync)
+            const baseUrl = window.location.port === '5173' ? 'https://localhost:3000' : '';
+            const response = await fetch(`${baseUrl}/serena-api/sync/ensure-contact-kb`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
                 },
-                body: JSON.stringify({ contact_id: contactGuid, contact_name: contactName })
+                body: JSON.stringify({
+                    contact_id: contactGuid,
+                    contact_name: contactName,
+                    folder_id: folderId
+                })
             });
-            console.log('[CrmContextService] Initial SharePoint sync triggered.');
-        } catch (e) {
-            console.warn('[CrmContextService] Initial sync trigger failed (non-fatal):', e);
+
+            if (!response.ok) {
+                const detail = await response.text();
+                console.error(`[CrmContextService] ensure-contact-kb failed: ${response.status}`, detail);
+                return false;
+            }
+
+            const result = await response.json();
+            console.log(`[CrmContextService] KB ensured (${result.kb_id}) + sync started`);
+            return true;
+        } catch (error) {
+            console.error('[CrmContextService] Error ensuring knowledge base:', error);
+            return false;
         }
     }
+
 }
