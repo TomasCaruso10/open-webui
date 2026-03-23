@@ -32,6 +32,20 @@ export class CrmContextService {
         const noteTitleParam = searchParams.get('note_title');
 
         if (!folderIdParam) {
+            // Even without folder, preserve note context if available (report editor without CRM contact)
+            if (noteIdParam) {
+                console.log('[CrmContextService] No folder_id, but note_id found. Setting note context only.');
+                crmContext.set({
+                    folder: {
+                        contactGuid: '',
+                        folderId: '',
+                        folderName: '',
+                        noteId: noteIdParam,
+                        noteTitle: noteTitleParam || undefined
+                    }
+                });
+                return { folderId: '' };
+            }
             console.log('[CrmContextService] No folder_id provided. Ignoring context.');
             return null;
         }
