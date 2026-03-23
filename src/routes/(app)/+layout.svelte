@@ -385,7 +385,7 @@
 					</div>
 				{/if}
 
-				{#if !$page.url.searchParams.has('embed')}
+				{#if !$page.url.searchParams.has('embed') && !$page.url.pathname.startsWith('/report/')}
 					{#if $isCrmEmbedded}
 						<CrmSidebar />
 					{:else}

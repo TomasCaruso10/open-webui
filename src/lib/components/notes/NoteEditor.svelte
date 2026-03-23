@@ -99,6 +99,7 @@
 	export let id: null | string = null;
 	export let chatId: string | null = null;
 	export let collaboration: boolean = true;
+	export let hideFloatingButtons: boolean = false;
 
 	let editor = null;
 	let note = null;
@@ -1358,7 +1359,8 @@ Provide the enhanced notes in markdown format. Use markdown syntax for headings,
 				</div>
 			{/if}
 		</div>
-		<div class="absolute z-50 bottom-0 right-0 p-3.5 flex select-none">
+		{#if !hideFloatingButtons}
+	<div class="absolute z-50 bottom-0 right-0 p-3.5 flex select-none">
 			<div class="flex flex-col gap-2 justify-end">
 				{#if recording}
 					<div class="flex-1 w-full">
@@ -1475,6 +1477,7 @@ Provide the enhanced notes in markdown format. Use markdown syntax for headings,
 				{/if}
 			</div>
 		</div>
+	{/if}
 	</Pane>
 	<NotePanel bind:show={showPanel}>
 		{#if selectedPanel === 'chat'}
