@@ -1,3 +1,5 @@
+import { getTrustedParentOrigin } from './trustedOrigin';
+
 export interface CrmEventData {
 	action: string; // "refresh_timeline", "refresh_form", "open_record"
 	entity_name?: string;
@@ -7,6 +9,8 @@ export interface CrmEventData {
 
 export class CrmEventBridge {
 	static dispatch(data: CrmEventData): void {
-		window.parent.postMessage({ type: 'crm:event', data }, '*');
+		const origin = getTrustedParentOrigin();
+		if (!origin) return; // standalone mode — no bridge to talk to
+		window.parent.postMessage({ type: 'crm:event', data }, origin);
 	}
 }

@@ -2,6 +2,8 @@
 // Handles pre-auth token relay from the iframe bridge (ChatWidgetJS)
 // and token renewal via postMessage.
 
+import { setTrustedParentOrigin, getTrustedParentOrigin } from './trustedOrigin';
+
 // ──────────────────────────────────────────────────────────────
 // Pre-auth: receive token from iframe bridge (parent)
 // ──────────────────────────────────────────────────────────────
@@ -28,7 +30,10 @@ export function listenForPreAuthToken(timeoutMs = 5000): Promise<string | null> 
             if (resolved) return;
             if (event.data?.type !== 'auth:token') return;
 
-            console.log('[pre-auth] Received token from bridge');
+            // Trust the origin of the first auth:token — this is the bridge.
+            // All subsequent postMessages to parent will use this origin.
+            setTrustedParentOrigin(event.origin);
+            console.log('[pre-auth] Received token from bridge, trusted origin:', event.origin);
 
             // Apply theme sent by the bridge (e.g. 'light' to match the CRM white UI).
             // Set localStorage.theme so it persists across reloads, and also apply the
@@ -54,7 +59,9 @@ export function listenForPreAuthToken(timeoutMs = 5000): Promise<string | null> 
 
         window.addEventListener('message', handler);
 
-        // Signal to the bridge that we're ready to receive the token
+        // Signal to the bridge that we're ready to receive the token.
+        // First auth:ready must use '*' because we don't know the bridge origin yet.
+        // The bridge will respond with auth:token, at which point we learn and save the origin.
         if (window.parent && window.parent !== window) {
             window.parent.postMessage({ type: 'auth:ready' }, '*');
             console.log('[pre-auth] Sent auth:ready to parent');
@@ -96,6 +103,9 @@ export function requestTokenRenewal(timeoutMs = 10000): Promise<string | null> {
             if (resolved) return;
             if (event.data?.type !== 'auth:token') return;
 
+            const trusted = getTrustedParentOrigin();
+            if (trusted && event.origin !== trusted) return;
+
             console.log('[pre-auth] Received renewed token from bridge');
             cleanup();
             resolve(event.data.token ?? null);
@@ -103,12 +113,13 @@ export function requestTokenRenewal(timeoutMs = 10000): Promise<string | null> {
 
         window.addEventListener('message', handler);
 
-        // Request renewal from the bridge
-        if (window.parent && window.parent !== window) {
-            window.parent.postMessage({ type: 'auth:renew' }, '*');
+        // Request renewal from the bridge using the trusted origin
+        const parentOrigin = getTrustedParentOrigin();
+        if (window.parent && window.parent !== window && parentOrigin) {
+            window.parent.postMessage({ type: 'auth:renew' }, parentOrigin);
             console.log('[pre-auth] Sent auth:renew to parent');
         } else {
-            // Not in an iframe, cannot renew
+            // Not in an iframe or no trusted origin, cannot renew
             cleanup();
             resolve(null);
             return;
