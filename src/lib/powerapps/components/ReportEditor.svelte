@@ -17,7 +17,6 @@
 	import { user } from '$lib/stores';
 	import { requestTokenRenewal } from '$lib/powerapps/services/crmAuth';
 	import { getNoteById, updateNoteById } from '$lib/apis/notes';
-	import { createNewChat } from '$lib/apis/chats';
 
 	import NoteEditor from '$lib/components/notes/NoteEditor.svelte';
 
@@ -78,35 +77,47 @@
 			const userId = $user?.id;
 			if (!userId) return chatId;
 
-			// Owner of the note → use original chat
-			if (note.user_id === userId) return chatId;
+			// Owner = orientador that generated the report (stored in meta, not
+			// note.user_id which belongs to the admin client that created the note)
+			if (note.meta?.orientador_id === userId) return chatId;
 
 			// Non-owner: check for existing editor chat
 			const editorChats = note.meta?.editor_chats as Record<string, string> | undefined;
 			if (editorChats?.[userId]) return editorChats[userId];
 
-			// First time: create a new chat for this orientador
-			const newChat = await createNewChat(token, { chat: {} }, null);
-			if (!newChat?.id) return null;
-
-			// Persist the association in note meta
-			await updateNoteById(token, id, {
-				meta: {
-					...note.meta,
-					editor_chats: { ...(editorChats || {}), [userId]: newChat.id }
-				}
-			});
-
-			return newChat.id;
+			// Non-owner, first time: open fresh chat (OWUI creates it on first message).
+			// The chatId will be persisted via chat:created postMessage from the iframe.
+			return 'new';
 		} catch (e) {
-			console.warn('[report-editor] Could not resolve editor chat:', e);
+			console.error('[report-editor] Could not resolve editor chat:', e);
 			return chatId;
 		}
 	}
 
-	// ── Auth relay: act as bridge for the chat iframe ──
+	// ── Auth relay + chat persistence: bridge for the chat iframe ──
 	async function handleMessage(event: MessageEvent) {
 		const type = event.data?.type;
+
+		// Handle chat:created from iframe (non-owner chat persistence)
+		if (type === 'chat:created' && event.data?.chatId && resolvedChatId === 'new') {
+			const userId = $user?.id;
+			if (!userId) return;
+			try {
+				const token = localStorage.getItem('token') || '';
+				const note = await getNoteById(token, id);
+				if (!note) return;
+				const editorChats = (note.meta?.editor_chats || {}) as Record<string, string>;
+				await updateNoteById(token, id, {
+					meta: { ...note.meta, editor_chats: { ...editorChats, [userId]: event.data.chatId } }
+				});
+				resolvedChatId = event.data.chatId;
+				console.log('[report-editor] Saved editor chat:', event.data.chatId);
+			} catch (e) {
+				console.warn('[report-editor] Could not persist editor chat:', e);
+			}
+			return;
+		}
+
 		if (type !== 'auth:ready' && type !== 'auth:renew') return;
 
 		let token: string | null = null;
@@ -141,7 +152,8 @@
 
 	// ── Build chat iframe URL with CRM context ──
 	function buildChatUrl(chatId: string): string {
-		let url = `/c/${chatId}?embed=true`;
+		// 'new' = fresh chat for non-owner without previous editor chat
+		let url = chatId === 'new' ? `/?embed=true` : `/c/${chatId}?embed=true`;
 		// Pass note context so the chat knows which report is open
 		url += `&note_id=${encodeURIComponent(id)}`;
 		if (resolvedNoteTitle) {

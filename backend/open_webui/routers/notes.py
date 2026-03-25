@@ -15,6 +15,7 @@ from open_webui.models.notes import (
     Notes,
     NoteModel,
     NoteForm,
+    NoteUpdateForm,
     NoteUserResponse,
 )
 
@@ -240,7 +241,7 @@ async def get_note_by_id(
 async def update_note_by_id(
     request: Request,
     id: str,
-    form_data: NoteForm,
+    form_data: NoteUpdateForm,
     user=Depends(get_verified_user),
     db: Session = Depends(get_session),
 ):

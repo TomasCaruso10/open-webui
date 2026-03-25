@@ -192,6 +192,10 @@
 		);
 
 		if (chatIdProp && (await loadChat())) {
+			// crm-override: Read URL params (note_id, folder_id) for existing chats too.
+			// ReportEditor embeds chat iframe with these params, but loadChat() doesn't read them.
+			await initCrmFromUrlParams();
+
 			await tick();
 			loading = false;
 			window.setTimeout(() => scrollToBottom(), 0);
@@ -983,6 +987,24 @@
 	// Web functions
 	//////////////////////////
 
+	// crm-override: Initialize CRM context from URL params (note_id, folder_id).
+	// Used by both loadChat and initNewChat paths.
+	const initCrmFromUrlParams = async () => {
+		const crmResult = await CrmContextService.initCrmContext(
+			$page.url.searchParams,
+			localStorage.token
+		);
+
+		// Resolve selectedFolder from the folder that initCrmContext found/created.
+		const folderId = crmResult?.folderId || $crmContext?.folder?.folderId;
+		if (folderId) {
+			const folder = await getFolderById(localStorage.token, folderId).catch(() => null);
+			if (folder) {
+				await selectedFolder.set(folder);
+			}
+		}
+	};
+
 	const initNewChat = async () => {
 		console.log('initNewChat');
 		if ($user?.role !== 'admin' && $user?.permissions?.chat?.temporary_enforced) {
@@ -1107,27 +1129,8 @@
 
 		//1 . Ensures a folder exists if contactid is present in url params
 
-		// crm-override: Ensures a folder exists if folder_id is present in url params
-		const crmResult = await CrmContextService.initCrmContext(
-			$page.url.searchParams,
-			localStorage.token
-		);
-		if (crmResult?.folderId) {
-			const folders = await getFolders(localStorage.token);
-			const folder = folders.find((f) => f.id === crmResult.folderId);
-			if (folder) {
-				await selectedFolder.set(folder);
-			}
-		}
-
-		// crm-override: Re-apply folder context on re-mount when URL params are gone
-		// (e.g. user clicked "New Chat" and URL is now just "/")
-		if (!crmResult?.folderId && $crmContext?.folder?.folderId) {
-			const folder = await getFolderById(localStorage.token, $crmContext.folder.folderId);
-			if (folder) {
-				await selectedFolder.set(folder);
-			}
-		}
+		// crm-override: Initialize CRM context from URL params (note_id, folder_id)
+		await initCrmFromUrlParams();
 
 		if ($page.url.searchParams.get('youtube')) {
 			await uploadWeb(`https://www.youtube.com/watch?v=${$page.url.searchParams.get('youtube')}`);
@@ -2500,6 +2503,12 @@
 			await chatId.set(_chatId);
 
 			window.history.replaceState(history.state, '', `/c/${_chatId}`);
+
+			// crm-override: Notify parent (ReportEditor) about the new chat ID
+			// so it can persist the association in note.meta.editor_chats.
+			if (window.parent && window.parent !== window) {
+				window.parent.postMessage({ type: 'chat:created', chatId: _chatId }, window.location.origin);
+			}
 
 			await tick();
 
