@@ -13,7 +13,7 @@ export const WEBUI_API_BASE_URL = `${WEBUI_BASE_URL}/api/v1`;
 
 // crm_override: Serena backend API (behind Caddy proxy)
 declare const SERENA_API_BASE_URL: string;
-export const SERENA_API_URL = SERENA_API_BASE_URL || `${WEBUI_BASE_URL}/api`;
+export const SERENA_API_URL = SERENA_API_BASE_URL || `${WEBUI_BASE_URL}/serena-api`;
 
 export const OLLAMA_API_BASE_URL = `${WEBUI_BASE_URL}/ollama`;
 export const OPENAI_API_BASE_URL = `${WEBUI_BASE_URL}/openai`;
