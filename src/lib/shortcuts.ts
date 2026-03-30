@@ -33,6 +33,7 @@ export enum Shortcut {
 	ATTACH_FILE = 'attachFile',
 	ADD_PROMPT = 'addPrompt',
 	TALK_TO_MODEL = 'talkToModel',
+	DICTATE = 'dictate',
 
 	//Message
 	GENERATE_MESSAGE_PAIR = 'generateMessagePair',
@@ -122,6 +123,11 @@ export const shortcuts: ShortcutRegistry = {
 	[Shortcut.TALK_TO_MODEL]: {
 		name: 'Talk to Model',
 		keys: ['@'],
+		category: 'Input'
+	},
+	[Shortcut.DICTATE]: {
+		name: 'Dictate',
+		keys: ['mod', 'shift', 'D'],
 		category: 'Input'
 	},
 

@@ -195,6 +195,7 @@
 				$socket?.on('note-events', noteEventHandler);
 			}
 		} else {
+			console.warn('[reload-debug] NoteEditor.init() note fetch returned null, redirecting', { noteId: id });
 			goto('/');
 			return;
 		}
@@ -817,38 +818,7 @@ Provide the enhanced notes in markdown format. Use markdown syntax for headings,
 	};
 
 	onMount(async () => {
-		await tick();
-
-		if ($settings?.models) {
-			selectedModelId = $settings?.models[0];
-		} else if ($config?.default_models) {
-			selectedModelId = $config?.default_models.split(',')[0];
-		} else {
-			selectedModelId = '';
-		}
-
-		if (selectedModelId) {
-			const model = $models
-				.filter((model) => model.id === selectedModelId && !(model?.info?.meta?.hidden ?? false))
-				.find((model) => model.id === selectedModelId);
-
-			if (!model) {
-				selectedModelId = '';
-			}
-		}
-
-		if (!selectedModelId) {
-			selectedModelId =
-				$models.filter((model) => !(model?.info?.meta?.hidden ?? false)).at(0)?.id || '';
-		}
-
-		const dropzoneElement = document.getElementById('note-editor');
-
-		// dropzoneElement?.addEventListener('dragover', onDragOver);
-		// dropzoneElement?.addEventListener('drop', onDrop);
-		// dropzoneElement?.addEventListener('dragleave', onDragLeave);
-
-		// BroadcastChannel listener for real-time note edits from Serena
+		// BroadcastChannel listener FIRST — before any await, so we never miss events
 		noteEditChannel = new BroadcastChannel('serena:note_edit');
 		noteEditChannel.onmessage = (event) => {
 			const data = event.data;
@@ -881,14 +851,11 @@ Provide the enhanced notes in markdown format. Use markdown syntax for headings,
 					}
 					editing = false;
 					streaming = false;
-					// Skip onEdited() when highlights present — its setContent()
-					// would race with requestAnimationFrame and destroy highlights
-					if (!data.highlights?.length) {
-						onEdited();
-					}
 
 					// Highlight changed sections after content is applied
 					if (data.highlights?.length && editor) {
+						// Sync Tiptap DOM with updated HTML before applying highlights
+						editor.commands.setContent(note.data.content.html);
 						requestAnimationFrame(() => {
 							const doc = editor.state.doc;
 							for (const text of data.highlights) {
@@ -916,10 +883,43 @@ Provide the enhanced notes in markdown format. Use markdown syntax for headings,
 							editor.view.dom.addEventListener('mousedown', clearHighlights, { once: true });
 							editor.view.dom.addEventListener('keydown', clearHighlights, { once: true });
 						});
+					} else {
+						onEdited();
 					}
 					break;
 			}
 		};
+
+		await tick();
+
+		if ($settings?.models) {
+			selectedModelId = $settings?.models[0];
+		} else if ($config?.default_models) {
+			selectedModelId = $config?.default_models.split(',')[0];
+		} else {
+			selectedModelId = '';
+		}
+
+		if (selectedModelId) {
+			const model = $models
+				.filter((model) => model.id === selectedModelId && !(model?.info?.meta?.hidden ?? false))
+				.find((model) => model.id === selectedModelId);
+
+			if (!model) {
+				selectedModelId = '';
+			}
+		}
+
+		if (!selectedModelId) {
+			selectedModelId =
+				$models.filter((model) => !(model?.info?.meta?.hidden ?? false)).at(0)?.id || '';
+		}
+
+		const dropzoneElement = document.getElementById('note-editor');
+
+		// dropzoneElement?.addEventListener('dragover', onDragOver);
+		// dropzoneElement?.addEventListener('drop', onDrop);
+		// dropzoneElement?.addEventListener('dragleave', onDragLeave);
 	});
 
 	onDestroy(() => {

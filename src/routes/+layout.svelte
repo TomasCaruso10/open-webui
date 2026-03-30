@@ -162,6 +162,11 @@
 					($WEBUI_VERSION !== null && version !== $WEBUI_VERSION) ||
 					($WEBUI_DEPLOYMENT_ID !== null && deploymentId !== $WEBUI_DEPLOYMENT_ID)
 				) {
+					console.warn('[reload-debug] Version mismatch, reloading.', {
+						storedVersion: $WEBUI_VERSION, serverVersion: version,
+						storedDeploymentId: $WEBUI_DEPLOYMENT_ID, serverDeploymentId: deploymentId,
+						inIframe: window !== window.parent,
+					});
 					await unregisterServiceWorkers();
 					location.href = location.href;
 					return;

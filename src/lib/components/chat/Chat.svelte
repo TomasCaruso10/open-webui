@@ -536,9 +536,10 @@
 				// note edit events — forward to NoteEditor via BroadcastChannel
 				} else if (type === 'note_edit') {
 					try {
-						const channel = new BroadcastChannel('serena:note_edit');
-						channel.postMessage(data);
-						channel.close();
+						if (!noteEditChannel) {
+							noteEditChannel = new BroadcastChannel('serena:note_edit');
+						}
+						noteEditChannel.postMessage(data);
 					} catch (e) {
 						console.warn('BroadcastChannel not available:', e);
 					}
@@ -636,6 +637,7 @@
 
 	let pageSubscribe = null;
 	let showControlsSubscribe = null;
+	let noteEditChannel: BroadcastChannel | null = null;
 	let selectedFolderSubscribe = null;
 
 	const stopAudio = () => {
@@ -648,6 +650,7 @@
 	onMount(async () => {
 		loading = true;
 		console.log('mounted');
+		noteEditChannel = new BroadcastChannel('serena:note_edit');
 		window.addEventListener('message', onMessageHandler);
 		$socket?.on('events', chatEventHandler);
 
@@ -735,6 +738,7 @@
 
 	onDestroy(() => {
 		try {
+			noteEditChannel?.close();
 			pageSubscribe();
 			showControlsSubscribe();
 			selectedFolderSubscribe();

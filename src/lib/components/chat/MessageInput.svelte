@@ -825,6 +825,16 @@
 			console.log('Escape');
 			dragged = false;
 		}
+
+		// Ctrl+Shift+D (Cmd+Shift+D on Mac) — toggle dictation
+		if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'D') {
+			e.preventDefault();
+			if (recording) {
+				recording = false;
+			} else {
+				document.getElementById('voice-input-button')?.click();
+			}
+		}
 	};
 
 	const onKeyUp = (e) => {
