@@ -2071,6 +2071,7 @@
 
 				return {
 					role: message.role,
+					files: message.files,
 					...(message.role === 'user' && imageFiles.length > 0
 						? {
 								content: [
