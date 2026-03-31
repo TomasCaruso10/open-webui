@@ -147,14 +147,8 @@ export class CrmContextService {
         folderData: Record<string, any> | null
     ): Promise<boolean> {
         try {
-            // Quick local check — if KB already linked, skip
-            const existingFiles: any[] = folderData?.files || [];
-            if (existingFiles.some((f: any) => f.type === 'collection')) {
-                console.log('[CrmContextService] KB already linked. Skipping.');
-                return false;
-            }
-
-            // Delegate to backend (uses admin credentials + triggers sync)
+            // Delegate to backend — it checks if the KB actually exists
+            // (folder.data.files may reference a deleted KB)
             const baseUrl = window.location.port === '5173' ? 'https://localhost:3000' : '';
             const response = await fetch(`${baseUrl}/serena-api/sync/ensure-contact-kb`, {
                 method: 'POST',
