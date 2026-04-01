@@ -32,6 +32,7 @@
 	let fechaAudio: string | null = null;
 	let chatIframe: HTMLIFrameElement;
 	let resolvedChatId: string | null = null;
+	let chatUrl: string | null = null;
 	let resolvedContactId: string | null = null;
 	let resolvedContactName: string | null = null;
 	let resolvedNoteTitle: string | null = null;
@@ -198,6 +199,7 @@
 		]);
 
 		resolvedChatId = editorChatId;
+		chatUrl = editorChatId ? buildChatUrl(editorChatId) : null;
 		chatReady = true;
 	});
 
@@ -336,11 +338,11 @@
 		</div>
 
 		<!-- Right: Chat via iframe (per-orientador, auth relayed by this component) -->
-		{#if chatReady && resolvedChatId}
+		{#if chatReady && chatUrl}
 			<div class="w-[400px] shrink-0 border-l border-gray-200 dark:border-gray-700">
 				<iframe
 					bind:this={chatIframe}
-					src={buildChatUrl(resolvedChatId)}
+					src={chatUrl}
 					title="Chat"
 					class="w-full h-full border-0"
 					allow="clipboard-write"
