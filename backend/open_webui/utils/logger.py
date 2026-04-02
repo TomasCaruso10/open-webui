@@ -15,6 +15,7 @@ from open_webui.env import (
     AUDIT_UVICORN_LOGGER_NAMES,
     ENABLE_OTEL,
     ENABLE_OTEL_LOGS,
+    OTEL_EXCLUDED_LOGGERS,
 )
 
 if TYPE_CHECKING:
@@ -69,9 +70,10 @@ class InterceptHandler(logging.Handler):
             **self._get_extras()
         ).log(level, record.getMessage())
         if ENABLE_OTEL and ENABLE_OTEL_LOGS:
-            from open_webui.utils.telemetry.logs import otel_handler
+            if record.name not in OTEL_EXCLUDED_LOGGERS:
+                from open_webui.utils.telemetry.logs import otel_handler
 
-            otel_handler.emit(record)
+                otel_handler.emit(record)
 
     def _get_extras(self):
         if not ENABLE_OTEL:

@@ -982,6 +982,12 @@ ENABLE_OTEL_REDIS = (
     os.environ.get("ENABLE_OTEL_REDIS", "True").lower() == "true"
 )
 
+OTEL_EXCLUDED_LOGGERS: list[str] = [
+    x.strip()
+    for x in os.environ.get("OTEL_EXCLUDED_LOGGERS", "").split(",")
+    if x.strip()
+]
+
 ####################################
 # TOOLS/FUNCTIONS PIP OPTIONS
 ####################################
