@@ -70,7 +70,7 @@ class InterceptHandler(logging.Handler):
             **self._get_extras()
         ).log(level, record.getMessage())
         if ENABLE_OTEL and ENABLE_OTEL_LOGS:
-            if record.name not in OTEL_EXCLUDED_LOGGERS:
+            if not any(record.name.startswith(x) for x in OTEL_EXCLUDED_LOGGERS):
                 from open_webui.utils.telemetry.logs import otel_handler
 
                 otel_handler.emit(record)

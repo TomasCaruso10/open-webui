@@ -174,7 +174,7 @@ def aiohttp_response_hook(
         span.set_attribute(SpanAttributes.ERROR_MESSAGE, str(response.exception))
 
 
-from open_webui.env import ENABLE_OTEL_SQLALCHEMY, ENABLE_OTEL_REDIS
+from open_webui.env import ENABLE_OTEL_SQLALCHEMY, ENABLE_OTEL_REDIS, OTEL_EXCLUDED_LOGGERS
 
 class Instrumentor(BaseInstrumentor):
     """
@@ -198,6 +198,8 @@ class Instrumentor(BaseInstrumentor):
             request_hook=requests_hook, response_hook=response_hook
         )
         LoggingInstrumentor().instrument()
+        for _name in OTEL_EXCLUDED_LOGGERS:
+            logging.getLogger(_name).setLevel(logging.WARNING)
         HTTPXClientInstrumentor().instrument(
             request_hook=httpx_request_hook,
             response_hook=httpx_response_hook,
