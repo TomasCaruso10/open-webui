@@ -978,6 +978,10 @@ ENABLE_OTEL_SQLALCHEMY = (
     os.environ.get("ENABLE_OTEL_SQLALCHEMY", "True").lower() == "true"
 )
 
+ENABLE_OTEL_REDIS = (
+    os.environ.get("ENABLE_OTEL_REDIS", "True").lower() == "true"
+)
+
 ####################################
 # TOOLS/FUNCTIONS PIP OPTIONS
 ####################################
