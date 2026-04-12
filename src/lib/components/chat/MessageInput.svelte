@@ -34,6 +34,8 @@
 		temporaryChatEnabled
 	} from '$lib/stores';
 
+	import { isCrmEmbedded } from '$lib/powerapps/stores/crmContext';
+
 	import {
 		convertHeicToJpeg,
 		compressImage,
@@ -1341,12 +1343,12 @@
 													floatingMenuPlacement={'top-start'}
 													insertPromptAsRichText={$settings?.insertPromptAsRichText ?? false}
 													shiftEnter={!($settings?.ctrlEnterToSend ?? false) &&
-														!$mobile &&
+														($isCrmEmbedded || (!$mobile &&
 														!(
 															'ontouchstart' in window ||
 															navigator.maxTouchPoints > 0 ||
 															navigator.msMaxTouchPoints > 0
-														)}
+														)))}
 													placeholder={placeholder ? placeholder : $i18n.t('Send a Message')}
 													largeTextAsFile={($settings?.largeTextAsFile ?? false) && !shiftKey}
 													autocomplete={$config?.features?.enable_autocomplete_generation &&
@@ -1408,6 +1410,7 @@
 
 														if (!suggestionsContainerElement) {
 															if (
+																$isCrmEmbedded ||
 																!$mobile ||
 																!(
 																	'ontouchstart' in window ||
