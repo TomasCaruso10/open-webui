@@ -2,7 +2,7 @@
 // Handles pre-auth token relay from the iframe bridge (ChatWidgetJS)
 // and token renewal via postMessage.
 
-import { setTrustedParentOrigin, getTrustedParentOrigin } from './trustedOrigin';
+import { setTrustedParentOrigin, getTrustedParentOrigin, isOriginTrusted } from './trustedOrigin';
 
 // ──────────────────────────────────────────────────────────────
 // Pre-auth: receive token from iframe bridge (parent)
@@ -29,6 +29,21 @@ export function listenForPreAuthToken(timeoutMs = 5000): Promise<string | null> 
         const handler = (event: MessageEvent) => {
             if (resolved) return;
             if (event.data?.type !== 'auth:token') return;
+
+            // Validate the origin against the whitelist BEFORE trusting it.
+            // Without this, the first sender to reach us wins — a malicious
+            // cross-origin frame could race the real bridge and become the
+            // trusted origin for the rest of the session.
+            //
+            // On rejection we keep listening; the 5s timeout below is the
+            // safety net if no trusted message ever arrives.
+            if (!isOriginTrusted(event.origin)) {
+                console.warn(
+                    '[pre-auth] Rejected auth:token from untrusted origin:',
+                    event.origin
+                );
+                return;
+            }
 
             // Trust the origin of the first auth:token — this is the bridge.
             // All subsequent postMessages to parent will use this origin.
