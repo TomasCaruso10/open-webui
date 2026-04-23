@@ -216,8 +216,10 @@
 			const token = localStorage.getItem('token') || '';
 			const res = await fetch(`${SERENA_API_URL}/report/${id}/finalize`, {
 				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ oauth_token: token })
+				headers: {
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${token}`
+				}
 			});
 
 			if (!res.ok) {
@@ -250,10 +252,12 @@
 
 			const res = await fetch(`${SERENA_API_URL}/report/audio`, {
 				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
+				headers: {
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${token}`
+				},
 				body: JSON.stringify({
-					req: { report_text: md, voice: 'echo', note_id: id },
-					oauth_token: token
+					req: { report_text: md, voice: 'echo', note_id: id }
 				})
 			});
 
