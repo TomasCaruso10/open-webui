@@ -265,22 +265,33 @@
 		}
 	};
 
-	$: if (selectedModels && chatIdProp !== '') {
-		saveSessionSelectedModels();
-	}
-
-	const saveSessionSelectedModels = () => {
-		const selectedModelsString = JSON.stringify(selectedModels);
-		if (
-			selectedModels.length === 0 ||
-			(selectedModels.length === 1 && selectedModels[0] === '') ||
-			sessionStorage.selectedModels === selectedModelsString
-		) {
-			return;
-		}
-		sessionStorage.selectedModels = selectedModelsString;
-		console.log('saveSessionSelectedModels', selectedModels, sessionStorage.selectedModels);
-	};
+	// Serena fork: upstream OWUI persisted the last selected model per-tab in
+	// sessionStorage, saved reactively on every `selectedModels` change here and
+	// read back in initNewChat() (line 1077-1080). Combined, they formed a
+	// self-sustaining loop: once a non-default model was chosen for any chat,
+	// every new chat in the tab inherited it even after removeItem(), because
+	// this block re-wrote it as soon as chatIdProp became non-empty. For
+	// INEFOP orientadores this is confusing — new chats must always start from
+	// $settings.models or DEFAULT_MODELS, not from a selection made minutes ago
+	// in an unrelated contact. Explicit selections stay scoped to the chat
+	// where they were made.
+	//
+	// $: if (selectedModels && chatIdProp !== '') {
+	// 	saveSessionSelectedModels();
+	// }
+	//
+	// const saveSessionSelectedModels = () => {
+	// 	const selectedModelsString = JSON.stringify(selectedModels);
+	// 	if (
+	// 		selectedModels.length === 0 ||
+	// 		(selectedModels.length === 1 && selectedModels[0] === '') ||
+	// 		sessionStorage.selectedModels === selectedModelsString
+	// 	) {
+	// 		return;
+	// 	}
+	// 	sessionStorage.selectedModels = selectedModelsString;
+	// 	console.log('saveSessionSelectedModels', selectedModels, sessionStorage.selectedModels);
+	// };
 
 	let oldSelectedModelIds = [''];
 	$: if (JSON.stringify(selectedModelIds) !== JSON.stringify(oldSelectedModelIds)) {
@@ -1073,21 +1084,27 @@
 			if ($selectedFolder?.data?.model_ids) {
 				// Set from folder model IDs
 				selectedModels = $selectedFolder?.data?.model_ids;
-			} else {
-				if (sessionStorage.selectedModels) {
-					// Set from session storage (temporary selection)
-					selectedModels = JSON.parse(sessionStorage.selectedModels);
-					sessionStorage.removeItem('selectedModels');
-				} else {
-					if ($settings?.models) {
-						// Set from user settings
-						selectedModels = $settings?.models;
-					} else if (defaultModels && defaultModels.length > 0) {
-						// Set from default models
-						selectedModels = defaultModels;
-					}
-				}
+			} else if ($settings?.models) {
+				// Set from user settings
+				selectedModels = $settings?.models;
+			} else if (defaultModels && defaultModels.length > 0) {
+				// Set from default models
+				selectedModels = defaultModels;
 			}
+
+			// Serena fork: upstream OWUI read sessionStorage.selectedModels here
+			// to restore the last per-tab model selection. We removed this step
+			// because the reactive saver above (see commented block near line 268)
+			// kept re-writing sessionStorage after every chat was created, causing
+			// new chats to inherit a model the user picked in an unrelated contact.
+			// New chats now always resolve from: folder.model_ids →
+			// $settings.models → DEFAULT_MODELS. Explicit per-chat selections
+			// stay local to the chat where they were made.
+			//
+			// if (sessionStorage.selectedModels) {
+			// 	selectedModels = JSON.parse(sessionStorage.selectedModels);
+			// 	sessionStorage.removeItem('selectedModels');
+			// }
 
 			// Unavailable & hidden models filtering
 			selectedModels = selectedModels.filter((modelId) => availableModels.includes(modelId));
