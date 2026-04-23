@@ -155,6 +155,13 @@
 	};
 
 	let taskIds = null;
+	// One-way poll to clean up stale taskIds when the chat is loaded inside the
+	// report editor iframe. Populated only if we entered the editor with
+	// taskIds != null. Polls every 500ms; ONLY clears taskIds when the backend
+	// reports no active tasks (never repopulates). Stops itself when cleared
+	// or when chatCompletedHandler already cleared them via the socket.
+	// See fix for "stop button stuck when opening report editor".
+	let editorTaskPollInterval: ReturnType<typeof setInterval> | null = null;
 
 	// Chat Input
 	let prompt = '';
@@ -749,6 +756,10 @@
 
 	onDestroy(() => {
 		try {
+			if (editorTaskPollInterval) {
+				clearInterval(editorTaskPollInterval);
+				editorTaskPollInterval = null;
+			}
 			noteEditChannel?.close();
 			pageSubscribe();
 			showControlsSubscribe();
@@ -1272,6 +1283,47 @@
 
 				if (taskRes) {
 					taskIds = taskRes.task_ids;
+				}
+
+				// ── Editor iframe: start one-way task poll ───────────────────
+				// The report editor loads the chat with ?context=editor. In
+				// that case, if getTaskIdsByChatId returned active tasks, they
+				// might be STALE (Redis cleanup is async via add_done_callback
+				// and can lag the actual end of the chat by ms-seconds). The
+				// chat:completion event that would normally clear taskIds may
+				// have already been emitted before this iframe even subscribed
+				// to the socket, leaving the stop button stuck forever.
+				//
+				// The poll is ONE-WAY: it only clears taskIds when it observes
+				// no active tasks. It never repopulates. If chatCompletedHandler
+				// clears taskIds first via the socket path, the poll sees the
+				// cleared state and stops. Idempotent, no race vs the socket.
+				if (typeof window !== 'undefined') {
+					const params = new URLSearchParams(window.location.search);
+					const isEditorEmbed = params.get('context') === 'editor';
+					if (isEditorEmbed && taskIds !== null && taskIds.length > 0) {
+						editorTaskPollInterval = setInterval(async () => {
+							// Already cleared by socket (chatCompletedHandler)
+							if (!taskIds || taskIds.length === 0) {
+								if (editorTaskPollInterval) {
+									clearInterval(editorTaskPollInterval);
+									editorTaskPollInterval = null;
+								}
+								return;
+							}
+							const res = await getTaskIdsByChatId(localStorage.token, $chatId).catch(
+								() => null
+							);
+							// ONLY clear on observed empty — never repopulate.
+							if (res && (!res.task_ids || res.task_ids.length === 0)) {
+								taskIds = null;
+								if (editorTaskPollInterval) {
+									clearInterval(editorTaskPollInterval);
+									editorTaskPollInterval = null;
+								}
+							}
+						}, 500);
+					}
 				}
 
 				await tick();

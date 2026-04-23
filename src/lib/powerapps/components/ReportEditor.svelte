@@ -155,6 +155,11 @@
 	function buildChatUrl(chatId: string): string {
 		// 'new' = fresh chat for non-owner without previous editor chat
 		let url = chatId === 'new' ? `/?embed=true` : `/c/${chatId}?embed=true`;
+		// Signal to Chat.svelte that this is the editor iframe, not a
+		// standalone load. Used to enable the one-way task poll that
+		// clears stale taskIds left over by Redis cleanup lag (see
+		// Chat.svelte:~1252 for the consumer).
+		url += `&context=editor`;
 		// Pass note context so the chat knows which report is open
 		url += `&note_id=${encodeURIComponent(id)}`;
 		if (resolvedNoteTitle) {
