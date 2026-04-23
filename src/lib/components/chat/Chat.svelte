@@ -1842,7 +1842,9 @@
 		const chatInput = document.getElementById('chat-input');
 		chatInput?.focus();
 
-		saveSessionSelectedModels();
+		// Serena fork: saveSessionSelectedModels() disabled — see commented block
+		// near line 268 for rationale (sessionStorage persistence loop).
+		// saveSessionSelectedModels();
 
 		await sendMessage(history, userMessageId, { newChat: true });
 	};
