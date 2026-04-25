@@ -286,7 +286,7 @@
 	<div class="report-topbar flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 shrink-0">
 		<div class="flex items-center gap-3">
 			<span class="text-sm font-medium text-gray-600 dark:text-gray-300">
-				Informe de Orientacion
+				Informe Educativo-Laboral
 			</span>
 			<span
 				class="text-xs px-2 py-0.5 rounded-full {status === 'finalizado'
