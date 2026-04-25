@@ -103,7 +103,7 @@ Based on the user's instruction, update and enhance the existing notes or select
 - Return only the final, fully-edited markdown notes—do not include explanations, reasoning, or XML tags.
 `;
 
-	const SERENA_DOCUMENT_EDITOR_PROMPT = `Sos un editor experto de informes de orientacion laboral.
+	const SERENA_DOCUMENT_EDITOR_PROMPT = `Sos un editor experto de informes educativo-laborales.
 
 ## Tarea
 Edita el informe segun la instruccion del orientador. El informe tiene 6 secciones:
@@ -187,7 +187,7 @@ Edita el informe segun la instruccion del orientador. El informe tiene 6 seccion
 			system = `${chatId ? SERENA_DOCUMENT_EDITOR_PROMPT : DEFAULT_DOCUMENT_EDITOR_PROMPT}\n\n`;
 		} else {
 			system = chatId
-				? `Sos Serena, asistente de orientacion laboral de INEFOP Uruguay. Responde las preguntas del orientador sobre el informe.\n\n`
+				? `Sos Serena, asistente de orientacion educativo-laboral de INEFOP Uruguay. Responde las preguntas del orientador sobre el informe.\n\n`
 				: `You are a helpful assistant. Please answer the user's questions based on the context provided.\n\n`;
 		}
 
